@@ -140,8 +140,8 @@ async function runImport() {
         throw new Error(`ไม่สามารถสร้าง Auth User ได้: ${authErr.message}`);
       }
 
-      // 4. เขียนโปรไฟล์ผู้ใช้ลงตาราง public.profiles
-      const { error: profileErr } = await supabase.from('profiles').insert([{
+      // 4. เขียนโปรไฟล์ผู้ใช้ลงตาราง public.profiles (ใช้ upsert รองรับกรณีมี trigger สร้างโปรไฟล์อัตโนมัติในฐานข้อมูล)
+      const { error: profileErr } = await supabase.from('profiles').upsert([{
         id: authUser.user.id,
         email: email,
         role: role,
