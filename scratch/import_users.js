@@ -108,14 +108,19 @@ async function runImport() {
 
       if (authErr) {
         // กรณีอีเมลเคยสมัครไว้ใน Auth แต่ยังไม่มีใน profiles (อาจเกิดจากระบบผิดพลาดครั้งก่อน)
-        if (authErr.message.includes('already exists') || authErr.code === 'email_exists') {
+        const isAlreadyExists = 
+          authErr.message.includes('already exists') || 
+          authErr.message.includes('already been registered') || 
+          authErr.code === 'email_exists';
+
+        if (isAlreadyExists) {
           console.warn(`⚠️ [เตือน] อีเมล ${email} เคยสร้างไว้ในระบบ Auth แล้ว จะกู้คืนมาเขียนลงตาราง profiles`);
           
-          // ค้นหา ID ของ Auth User เดิมจากอีเมล
-          const { data: userList, error: listErr } = await supabase.auth.admin.listUsers();
-          if (listErr) throw listErr;
+          // ค้นหา ID ของ Auth User เดิมตรงๆ จากอีเมล
+          const { data: userData, error: getUserErr } = await supabase.auth.admin.getUserByEmail(email);
+          if (getUserErr) throw getUserErr;
           
-          const foundUser = userList.users.find(u => u.email === email);
+          const foundUser = userData?.user;
           if (foundUser) {
             // เขียนทับข้อมูลลงตาราง profiles
             const { error: profInsertErr } = await supabase.from('profiles').upsert([{
