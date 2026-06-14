@@ -38,6 +38,8 @@ export default function MeetingsPage() {
     summary: '',
     reporter_name: '',
     reporter_phone: '',
+    reporter_position: 'ประธานคณะทำงาน',
+    recorder_name: '',
     source_info: '',
     source_contact: '',
     agenda_1: '',
@@ -168,8 +170,10 @@ export default function MeetingsPage() {
       meeting_date: new Date().toISOString().split('T')[0],
       location: '',
       summary: '',
-      reporter_name: profile?.name || '',
-      reporter_phone: profile?.phone || '',
+      reporter_name: '',
+      reporter_phone: '',
+      reporter_position: 'ประธานคณะทำงาน',
+      recorder_name: profile?.name || '',
       source_info: '',
       source_contact: '',
       agenda_1: 'เรื่องแจ้งที่ประชุมทราบ:',
@@ -490,24 +494,50 @@ export default function MeetingsPage() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
-                    <label className="text-slate-400 font-medium">ชื่อผู้รายงาน/ผู้คีย์บันทึก <span className="text-rose-500">*</span></label>
+                    <label className="text-slate-400 font-medium">ผู้จดรายงาน/ผู้บันทึก <span className="text-rose-500">*</span></label>
                     <input
                       type="text"
                       required
-                      value={formData.reporter_name}
+                      value={formData.recorder_name || ''}
+                      onChange={(e) => setFormData((p: any) => ({ ...p, recorder_name: e.target.value }))}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-white focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-slate-400 font-medium">เบอร์โทรศัพท์ผู้จดรายงาน</label>
+                    <input
+                      type="text"
+                      value={formData.reporter_phone || ''}
+                      onChange={(e) => setFormData((p: any) => ({ ...p, reporter_phone: e.target.value }))}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-white focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-slate-400 font-medium">ผู้มีอำนาจ <span className="text-rose-500">*</span></label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="เช่น นายกมลเดช สมบูรณ์"
+                      value={formData.reporter_name || ''}
                       onChange={(e) => setFormData((p: any) => ({ ...p, reporter_name: e.target.value }))}
                       className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-white focus:outline-none focus:border-indigo-500"
                     />
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="text-slate-400 font-medium">เบอร์โทรศัพท์ติดต่อ</label>
-                    <input
-                      type="text"
-                      value={formData.reporter_phone}
-                      onChange={(e) => setFormData((p: any) => ({ ...p, reporter_phone: e.target.value }))}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-white focus:outline-none focus:border-indigo-500"
-                    />
+                    <label className="text-slate-400 font-medium">ตำแหน่งผู้มีอำนาจ <span className="text-rose-500">*</span></label>
+                    <select
+                      value={formData.reporter_position || 'ประธานคณะทำงาน'}
+                      onChange={(e) => setFormData((p: any) => ({ ...p, reporter_position: e.target.value }))}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-white focus:outline-none focus:border-indigo-500 cursor-pointer"
+                    >
+                      <option value="ประธานคณะทำงาน">ประธานคณะทำงาน</option>
+                      <option value="รองประธานคณะทำงาน">รองประธานคณะทำงาน</option>
+                    </select>
                   </div>
                 </div>
 
@@ -572,7 +602,8 @@ export default function MeetingsPage() {
                   <div className="text-right pt-6 space-y-1">
                     <p>ขอแสดงความนับถือ</p>
                     <p className="pt-4 text-slate-500">(ลงชื่อ)....................................................</p>
-                    <p className="text-slate-900 font-semibold">({formData.reporter_name || 'ผู้แจ้งเรื่อง'})</p>
+                    <p className="text-slate-900 font-semibold">({formData.reporter_name || 'ผู้มีอำนาจลงนาม'})</p>
+                    <p className="text-slate-500 text-[9px]">ตำแหน่ง: {formData.reporter_position || 'ประธานคณะทำงาน'}</p>
                   </div>
                 </div>
 
@@ -786,11 +817,12 @@ export default function MeetingsPage() {
                   <div className="flex justify-between pt-4">
                     <div className="text-center w-1/2">
                       <p>ลงชื่อ............................................................ผู้จดรายงาน</p>
-                      <p className="mt-2 text-slate-900 font-semibold">({formData.reporter_name || '...........................................'})</p>
+                      <p className="mt-2 text-slate-900 font-semibold">({formData.recorder_name || '...........................................'})</p>
                     </div>
                     <div className="text-center w-1/2">
                       <p>ลงชื่อ............................................................ผู้ตรวจรายงาน</p>
-                      <p className="mt-2 text-slate-500">(ประธานคณะทำงานประจำศูนย์)</p>
+                      <p className="mt-2 text-slate-900 font-semibold">({formData.reporter_name || '...........................................'})</p>
+                      <p className="text-slate-500 text-[9px] mt-0.5">({formData.reporter_position || 'ประธานคณะทำงาน'})</p>
                     </div>
                   </div>
                 </div>

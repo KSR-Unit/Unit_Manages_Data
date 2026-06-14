@@ -248,7 +248,13 @@ export default function CategoryPage({ params }: { params: Promise<{ category: s
         ]},
         { name: 'year', label: 'ปี พ.ศ.', type: 'text', required: true, placeholder: 'เช่น 2569' },
         { name: 'reporter_name', label: 'ชื่อผู้รายงานตัวจริง', type: 'text', required: true },
-        { name: 'reporter_position', label: 'ตำแหน่งในศูนย์ไกล่เกลี่ย', type: 'text', required: true, placeholder: 'เช่น ประธานศูนย์ฯ หรือ เลขานุการ' },
+        { name: 'reporter_position', label: 'ตำแหน่งในศูนย์ไกล่เกลี่ย', type: 'select', required: true, options: [
+          { value: 'ประธานคณะทำงาน', label: 'ประธานคณะทำงาน' },
+          { value: 'รองประธานคณะทำงาน', label: 'รองประธานคณะทำงาน' },
+          { value: 'เหรัญญิกและคณะทำงาน', label: 'เหรัญญิกและคณะทำงาน' },
+          { value: 'เลขานุการและคณะทำงาน', label: 'เลขานุการและคณะทำงาน' },
+          { value: 'คณะทำงาน', label: 'คณะทำงาน' }
+        ]},
         { name: 'reporter_phone', label: 'เบอร์โทรศัพท์ติดต่อ', type: 'text', required: true },
       ],
       columns: [
