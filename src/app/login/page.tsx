@@ -29,7 +29,7 @@ export default function LoginPage() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) {
-      setErrorMsg('กรุณากรอกอีเมลและรหัสผ่าน');
+      setErrorMsg('กรุณากรอกชื่อผู้ใช้งาน หรืออีเมล และรหัสผ่าน');
       return;
     }
 
@@ -37,13 +37,30 @@ export default function LoginPage() {
     setErrorMsg('');
 
     try {
+      let loginEmail = email.trim();
+      
+      // Resolve username (if no @ symbol) to email using profiles table
+      if (!loginEmail.includes('@')) {
+        const { data: profData, error: profErr } = await supabase
+          .from('profiles')
+          .select('email')
+          .or(`unit_code.eq.${loginEmail},email.ilike.${loginEmail}@%`)
+          .limit(1);
+
+        if (profErr) {
+          console.error('Error resolving username:', profErr);
+        } else if (profData && profData.length > 0) {
+          loginEmail = profData[0].email;
+        }
+      }
+
       const { data, error } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
+        email: loginEmail,
         password: password,
       });
 
       if (error) {
-        setErrorMsg('อีเมลหรือรหัสผ่านไม่ถูกต้อง');
+        setErrorMsg('ชื่อผู้ใช้งาน/อีเมล หรือรหัสผ่านไม่ถูกต้อง');
       } else if (data.user) {
         // Fetch profile to verify status
         const { data: prof, error: profErr } = await supabase
@@ -112,13 +129,13 @@ export default function LoginPage() {
         <form onSubmit={handleLogin} className="space-y-6">
           <div>
             <label className="block text-sm font-medium text-slate-300 mb-2">
-              อีเมลผู้ใช้งาน (Email)
+              ชื่อผู้ใช้งาน (Username) หรือ อีเมล
             </label>
             <div className="relative">
               <Mail className="absolute left-4 top-3.5 h-5 w-5 text-slate-500" />
               <input
-                type="email"
-                placeholder="example@rlpd.go.th"
+                type="text"
+                placeholder="รหัสศูนย์ (เช่น KRI011301) หรือ อีเมล"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full bg-slate-950/50 border border-slate-800 rounded-xl py-3 pl-12 pr-4 text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all text-sm"
@@ -141,6 +158,11 @@ export default function LoginPage() {
                 className="w-full bg-slate-950/50 border border-slate-800 rounded-xl py-3 pl-12 pr-4 text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all text-sm"
                 required
               />
+            </div>
+            <div className="flex justify-end text-xs mt-2">
+              <a href="/forgot-password" className="text-indigo-400 hover:text-indigo-300 hover:underline transition-all font-light">
+                ลืมรหัสผ่าน / ตั้งค่ารหัสผ่านใหม่
+              </a>
             </div>
           </div>
 
