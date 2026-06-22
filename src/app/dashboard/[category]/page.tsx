@@ -5,7 +5,7 @@ import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { 
   Plus, Edit, Trash2, Search, ArrowLeft, Upload, FileText, CheckCircle, 
-  AlertCircle, Download, Loader2, ChevronLeft, ChevronRight, X
+  AlertCircle, Download, Loader2, ChevronLeft, ChevronRight, X, Mic, Sparkles
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 import Link from 'next/link';
@@ -48,7 +48,154 @@ export default function CategoryPage({ params }: { params: Promise<{ category: s
   // Form state
   const [formData, setFormData] = useState<any>({});
 
+  // AI Voice & Text integration states
+  const [aiStoryText, setAiStoryText] = useState('');
+  const [isListening, setIsListening] = useState(false);
+  const [aiParsing, setAiParsing] = useState(false);
+  const [highlightFields, setHighlightFields] = useState<Record<string, boolean>>({});
+
+  const recognitionRef = React.useRef<any>(null);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        const rec = new SpeechRecognition();
+        rec.continuous = true;
+        rec.interimResults = true;
+        rec.lang = 'th-TH';
+
+        rec.onresult = (event: any) => {
+          let interimTranscript = '';
+          let finalTranscript = '';
+
+          for (let i = event.resultIndex; i < event.results.length; ++i) {
+            if (event.results[i].isFinal) {
+              finalTranscript += event.results[i][0].transcript;
+            } else {
+              interimTranscript += event.results[i][0].transcript;
+            }
+          }
+
+          if (finalTranscript) {
+            setAiStoryText(prev => (prev ? prev + ' ' + finalTranscript : finalTranscript));
+          }
+        };
+
+        rec.onerror = (event: any) => {
+          console.error('Speech recognition error', event.error);
+          if (event.error !== 'no-speech') {
+            setIsListening(false);
+          }
+        };
+
+        rec.onend = () => {
+          setIsListening(false);
+        };
+
+        recognitionRef.current = rec;
+      }
+    }
+
+    return () => {
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop();
+        } catch (e) {
+          // ignore
+        }
+      }
+    };
+  }, []);
+
+  const startListening = () => {
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.start();
+        setIsListening(true);
+      } catch (e) {
+        console.error('Error starting speech recognition:', e);
+      }
+    } else {
+      Swal.fire('คำเตือน', 'บราว์เซอร์ของคุณไม่รองรับระบบการบันทึกเสียงกรอกแบบฟอร์ม (แนะนำให้ใช้ Google Chrome หรือ Safari)', 'warning');
+    }
+  };
+
+  const stopListening = () => {
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+        setIsListening(false);
+      } catch (e) {
+        console.error('Error stopping speech recognition:', e);
+      }
+    }
+  };
+
+  const handleAIParsing = async () => {
+    if (!aiStoryText || !aiStoryText.trim()) {
+      Swal.fire('เตือน', 'กรุณากรอกหรือพูดเล่ารายละเอียดก่อนกดประมวลผล', 'warning');
+      return;
+    }
+
+    setAiParsing(true);
+    try {
+      const res = await fetch('/api/ai/parse-report', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          story: aiStoryText,
+          fieldsSchema: activeConfig.fields
+        })
+      });
+
+      const result = await res.json();
+
+      if (!res.ok) {
+        throw new Error(result.error || 'เกิดข้อผิดพลาดในการประมวลผลของ AI');
+      }
+
+      const parsedData = result.data;
+      if (parsedData) {
+        const newFormData = { ...formData };
+        const fieldsFilled: Record<string, boolean> = {};
+
+        Object.keys(parsedData).forEach(key => {
+          if (parsedData[key] !== undefined && parsedData[key] !== '') {
+            newFormData[key] = parsedData[key];
+            fieldsFilled[key] = true;
+          }
+        });
+
+        setFormData(newFormData);
+        setHighlightFields(fieldsFilled);
+        setAiStoryText('');
+
+        Swal.fire({
+          icon: 'success',
+          title: 'ถอดข้อมูลลงฟอร์มสำเร็จ',
+          text: 'กรุณาตรวจสอบความถูกต้องและแก้ไขจุดที่ไฮไลท์หากจำเป็น',
+          timer: 2000,
+          showConfirmButton: false
+        });
+
+        setTimeout(() => {
+          setHighlightFields({});
+        }, 6000);
+      }
+
+    } catch (err: any) {
+      console.error(err);
+      Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
+    } finally {
+      setAiParsing(false);
+    }
+  };
+
   const pageSize = 10;
+
 
   // Configuration mapping for all core modules
   const configs: Record<string, CategoryConfig> = {
@@ -686,6 +833,81 @@ export default function CategoryPage({ params }: { params: Promise<{ category: s
 
             {/* Modal Form Content */}
             <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-5 text-xs text-slate-300">
+              
+              {/* AI Auto-fill helper box */}
+              {activeConfig.fields && activeConfig.fields.length > 0 && (
+                <div className="bg-gradient-to-br from-slate-900 to-indigo-950/40 border border-indigo-500/20 rounded-2xl p-4 space-y-3 relative overflow-hidden shadow-lg shadow-indigo-950/5">
+                  <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/5 rounded-full blur-xl pointer-events-none" />
+                  
+                  <div className="flex items-center justify-between border-b border-slate-800/60 pb-2">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="h-4 w-4 text-indigo-400 animate-pulse" />
+                      <span className="font-semibold text-slate-200 text-xs">ผู้ช่วยกรอกข้อมูลอัจฉริยะด้วย AI</span>
+                    </div>
+                    <span className="text-[9px] text-indigo-400 font-medium px-2 py-0.5 rounded bg-indigo-500/10 border border-indigo-500/10">
+                      Gemini 1.5 Flash
+                    </span>
+                  </div>
+
+                  <div className="space-y-2">
+                    <p className="text-[10px] text-slate-400 leading-4">
+                      พิมพ์หรือก๊อปปี้วางข้อความดิบ หรือกดปุ่มไมโครโฟนเพื่อพูดเล่าเรื่อง (เช่น เลขคดี ทุนทรัพย์ ผลการตัดสิน) แล้วสั่งงานให้ AI แยกจำแนกกรอกฟอร์มได้ทันที
+                    </p>
+
+                    <div className="relative">
+                      <textarea
+                        rows={2}
+                        placeholder={isListening ? "🎙️ กำลังฟังเสียงพูดของคุณ... กรุณาเล่าคดี..." : "พิมพ์เล่าเรื่องคดี หรือวางข้อความ เช่น: เลขคดี กก.02/69 คดีกู้ยืมเงิน ทุนทรัพย์สี่หมื่น..."}
+                        value={aiStoryText}
+                        onChange={(e) => setAiStoryText(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800/80 rounded-xl py-2 px-3 pr-10 text-[11px] text-slate-200 placeholder-slate-600 focus:outline-none focus:border-indigo-500 transition-all resize-none min-h-[50px]"
+                      />
+                      
+                      <div className="absolute right-2.5 bottom-2.5 flex items-center gap-1.5">
+                        {isListening ? (
+                          <button
+                            type="button"
+                            onClick={stopListening}
+                            className="p-1.5 bg-rose-500 hover:bg-rose-600 text-white rounded-lg flex items-center justify-center animate-pulse cursor-pointer shadow-lg shadow-rose-500/10"
+                            title="หยุดบันทึกเสียง"
+                          >
+                            <Mic className="h-3.5 w-3.5" />
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={startListening}
+                            className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg flex items-center justify-center cursor-pointer transition-colors"
+                            title="พูดเล่าเรื่อง"
+                          >
+                            <Mic className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      disabled={aiParsing || !aiStoryText.trim()}
+                      onClick={handleAIParsing}
+                      className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-30 disabled:hover:bg-indigo-600 text-white font-semibold py-2 px-3 rounded-xl flex items-center justify-center gap-1.5 cursor-pointer shadow-lg shadow-indigo-600/10 transition-all text-[11px]"
+                    >
+                      {aiParsing ? (
+                        <>
+                          <Loader2 className="animate-spin h-3.5 w-3.5" />
+                          <span>AI กำลังแยกวิเคราะห์ข้อมูล...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="h-3.5 w-3.5 text-indigo-200" />
+                          <span>สั่ง AI กรอกข้อมูลลงฟอร์ม</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {activeConfig.fields.map(field => {
                 // Render conditional logic if available
                 if (field.conditional && formData[field.conditional.field] !== field.conditional.showIf) {
@@ -704,7 +926,11 @@ export default function CategoryPage({ params }: { params: Promise<{ category: s
                         placeholder={field.placeholder}
                         value={formData[field.name] || ''}
                         onChange={(e) => setFormData((prev: any) => ({ ...prev, [field.name]: e.target.value }))}
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 transition-all text-xs"
+                        className={`w-full bg-slate-950 border rounded-xl py-2 px-3 text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 transition-all text-xs ${
+                          highlightFields[field.name] 
+                            ? 'border-indigo-500/80 bg-indigo-500/5 ring-1 ring-indigo-500/30 animate-pulse' 
+                            : 'border-slate-800'
+                        }`}
                         required={field.required}
                       />
                     )}
@@ -715,7 +941,11 @@ export default function CategoryPage({ params }: { params: Promise<{ category: s
                         placeholder={field.placeholder}
                         value={formData[field.name] || ''}
                         onChange={(e) => setFormData((prev: any) => ({ ...prev, [field.name]: e.target.value }))}
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 transition-all text-xs"
+                        className={`w-full bg-slate-950 border rounded-xl py-2 px-3 text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 transition-all text-xs ${
+                          highlightFields[field.name] 
+                            ? 'border-indigo-500/80 bg-indigo-500/5 ring-1 ring-indigo-500/30 animate-pulse' 
+                            : 'border-slate-800'
+                        }`}
                         required={field.required}
                       />
                     )}
@@ -725,7 +955,11 @@ export default function CategoryPage({ params }: { params: Promise<{ category: s
                         type="date"
                         value={formData[field.name] || ''}
                         onChange={(e) => setFormData((prev: any) => ({ ...prev, [field.name]: e.target.value }))}
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 transition-all text-xs"
+                        className={`w-full bg-slate-950 border rounded-xl py-2 px-3 text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 transition-all text-xs ${
+                          highlightFields[field.name] 
+                            ? 'border-indigo-500/80 bg-indigo-500/5 ring-1 ring-indigo-500/30 animate-pulse' 
+                            : 'border-slate-800'
+                        }`}
                         required={field.required}
                       />
                     )}
@@ -736,7 +970,11 @@ export default function CategoryPage({ params }: { params: Promise<{ category: s
                         placeholder={field.placeholder}
                         value={formData[field.name] || ''}
                         onChange={(e) => setFormData((prev: any) => ({ ...prev, [field.name]: e.target.value }))}
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 transition-all text-xs"
+                        className={`w-full bg-slate-950 border rounded-xl py-2 px-3 text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 transition-all text-xs ${
+                          highlightFields[field.name] 
+                            ? 'border-indigo-500/80 bg-indigo-500/5 ring-1 ring-indigo-500/30 animate-pulse' 
+                            : 'border-slate-800'
+                        }`}
                         required={field.required}
                       />
                     )}
@@ -745,7 +983,11 @@ export default function CategoryPage({ params }: { params: Promise<{ category: s
                       <select
                         value={formData[field.name] || ''}
                         onChange={(e) => setFormData((prev: any) => ({ ...prev, [field.name]: e.target.value }))}
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-white focus:outline-none focus:border-indigo-500 transition-all text-xs cursor-pointer"
+                        className={`w-full bg-slate-950 border rounded-xl py-2 px-3 text-white focus:outline-none focus:border-indigo-500 transition-all text-xs cursor-pointer ${
+                          highlightFields[field.name] 
+                            ? 'border-indigo-500/80 bg-indigo-500/5 ring-1 ring-indigo-500/30 animate-pulse' 
+                            : 'border-slate-800'
+                        }`}
                         required={field.required}
                       >
                         {field.options.map(opt => (
