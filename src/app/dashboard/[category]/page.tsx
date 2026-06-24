@@ -732,7 +732,7 @@ export default function CategoryPage({ params }: { params: Promise<{ category: s
     
     activeConfig.fields.forEach(field => {
       if (field.type === 'select' && field.options) {
-        initialForm[field.name] = field.options[0].value;
+        initialForm[field.name] = '';
       }
     });
 
@@ -1275,6 +1275,7 @@ export default function CategoryPage({ params }: { params: Promise<{ category: s
                         }`}
                         required={field.required}
                       >
+                        <option value="">เลือก</option>
                         {field.options.map(opt => (
                           <option key={opt.value} value={opt.value}>{opt.label}</option>
                         ))}
