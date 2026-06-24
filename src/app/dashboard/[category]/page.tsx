@@ -1,14 +1,15 @@
 'use client';
 
-import React, { useState, useEffect, use } from 'react';
+import React, { useState, useEffect, use, useRef } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { 
   Plus, Edit, Trash2, Search, ArrowLeft, Upload, FileText, CheckCircle, 
-  AlertCircle, Download, Loader2, ChevronLeft, ChevronRight, X, Mic, Sparkles
+  AlertCircle, Download, Loader2, ChevronLeft, ChevronRight, X, Mic, MicOff, Sparkles
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 import Link from 'next/link';
+import { useSpeechRecognition } from '@/hooks/useSpeechRecognition';
 
 interface CategoryConfig {
   title: string;
@@ -22,6 +23,8 @@ interface CategoryConfig {
     options?: { value: string; label: string }[];
     required?: boolean;
     conditional?: { field: string; showIf: string };
+    pattern?: string;
+    title?: string;
   }[];
   columns: { key: string; label: string; format?: (val: any) => string }[];
 }
@@ -50,85 +53,62 @@ export default function CategoryPage({ params }: { params: Promise<{ category: s
 
   // AI Voice & Text integration states
   const [aiStoryText, setAiStoryText] = useState('');
-  const [isListening, setIsListening] = useState(false);
   const [aiParsing, setAiParsing] = useState(false);
   const [highlightFields, setHighlightFields] = useState<Record<string, boolean>>({});
 
-  const recognitionRef = React.useRef<any>(null);
+  // Field Speech Recognition state
+  const [activeVoiceField, setActiveVoiceField] = useState<string | null>(null);
+  const activeVoiceFieldRef = useRef<string | null>(null);
 
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      if (SpeechRecognition) {
-        const rec = new SpeechRecognition();
-        rec.continuous = true;
-        rec.interimResults = true;
-        rec.lang = 'th-TH';
-
-        rec.onresult = (event: any) => {
-          let interimTranscript = '';
-          let finalTranscript = '';
-
-          for (let i = event.resultIndex; i < event.results.length; ++i) {
-            if (event.results[i].isFinal) {
-              finalTranscript += event.results[i][0].transcript;
-            } else {
-              interimTranscript += event.results[i][0].transcript;
-            }
-          }
-
-          if (finalTranscript) {
-            setAiStoryText(prev => (prev ? prev + ' ' + finalTranscript : finalTranscript));
-          }
-        };
-
-        rec.onerror = (event: any) => {
-          console.error('Speech recognition error', event.error);
-          if (event.error !== 'no-speech') {
-            setIsListening(false);
-          }
-        };
-
-        rec.onend = () => {
-          setIsListening(false);
-        };
-
-        recognitionRef.current = rec;
+  // Hook for global dictation (Large mic button)
+  const {
+    isListening,
+    startListening,
+    stopListening
+  } = useSpeechRecognition({
+    onResult: (text, isFinal) => {
+      if (isFinal) {
+        setAiStoryText(prev => (prev ? prev + ' ' + text : text));
       }
     }
+  });
 
-    return () => {
-      if (recognitionRef.current) {
-        try {
-          recognitionRef.current.stop();
-        } catch (e) {
-          // ignore
-        }
+  // Hook for single field dictation (Small mic buttons)
+  const {
+    isListening: isFieldListening,
+    startListening: startFieldListening,
+    stopListening: stopFieldListening
+  } = useSpeechRecognition({
+    continuous: true,
+    interimResults: false,
+    onResult: (text, isFinal) => {
+      const currentField = activeVoiceFieldRef.current;
+      if (currentField && isFinal) {
+        setFormData((prev: any) => {
+          const currentVal = prev[currentField] || '';
+          return {
+            ...prev,
+            [currentField]: currentVal + (currentVal ? ' ' : '') + text
+          };
+        });
       }
-    };
-  }, []);
+    },
+    onEnd: () => {
+      setActiveVoiceField(null);
+      activeVoiceFieldRef.current = null;
+    }
+  });
 
-  const startListening = () => {
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.start();
-        setIsListening(true);
-      } catch (e) {
-        console.error('Error starting speech recognition:', e);
-      }
+  const toggleFieldVoice = (fieldName: string) => {
+    if (activeVoiceFieldRef.current === fieldName) {
+      stopFieldListening();
     } else {
-      Swal.fire('คำเตือน', 'บราว์เซอร์ของคุณไม่รองรับระบบการบันทึกเสียงกรอกแบบฟอร์ม (แนะนำให้ใช้ Google Chrome หรือ Safari)', 'warning');
-    }
-  };
-
-  const stopListening = () => {
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.stop();
-        setIsListening(false);
-      } catch (e) {
-        console.error('Error stopping speech recognition:', e);
+      if (activeVoiceFieldRef.current) {
+        stopFieldListening();
       }
+      activeVoiceFieldRef.current = fieldName;
+      setActiveVoiceField(fieldName);
+      startFieldListening();
     }
   };
 
@@ -315,37 +295,110 @@ export default function CategoryPage({ params }: { params: Promise<{ category: s
       table: 'ems_reports',
       idField: 'id',
       fields: [
-        { name: 'case_no', label: 'เลขที่คำร้อง/คดีไกล่เกลี่ย', type: 'text', required: true, placeholder: 'เช่น กก.01/2569' },
-        { name: 'start_date_mediation', label: 'วันที่เริ่มไกล่เกลี่ย', type: 'date', required: true },
-        { name: 'case_type', label: 'ประเภทคดี/ข้อพิพาท', type: 'select', required: true, options: [
-          { value: 'แพ่ง (กู้ยืมเงิน)', label: 'แพ่ง (กู้ยืมเงิน)' },
-          { value: 'แพ่ง (ที่ดิน/มรดก)', label: 'แพ่ง (ที่ดิน/มรดก)' },
-          { value: 'อาญา (ลักทรัพย์)', label: 'อาญา (ลักทรัพย์)' },
-          { value: 'อาญา (ทำร้ายร่างกาย)', label: 'อาญา (ทำร้ายร่างกาย)' },
-          { value: 'ครอบครัว/มรดก', label: 'ครอบครัว/มรดก' },
-          { value: 'อื่นๆ', label: 'อื่นๆ' },
-        ]},
-        { name: 'case_status', label: 'สถานะขั้นตอนคดี', type: 'text', placeholder: 'เช่น อยู่ระหว่างไกล่เกลี่ย หรือ เสร็จสิ้นการไกล่เกลี่ย' },
-        { name: 'value_in_dispute', label: 'ทุนทรัพย์ข้อพิพาท (บาท)', type: 'number', placeholder: 'ใส่ 0 หากไม่มีทุนทรัพย์' },
-        { name: 'end_date_mediation', label: 'วันที่สิ้นสุดการไกล่เกลี่ย', type: 'date' },
-        { name: 'case_final', label: 'ผลสรุปการไกล่เกลี่ย', type: 'select', required: true, options: [
-          { value: 'ตกลงกันได้', label: 'ตกลงกันได้ (ทำบันทึกข้อตกลง)' },
-          { value: 'ตกลงกันไม่ได้', label: 'ตกลงกันไม่ได้ (ยุติเรื่อง)' },
-          { value: 'อื่นๆ/ถอนคำร้อง', label: 'อื่นๆ/ถอนคำร้อง' }
-        ]},
-        { name: 'summary', label: 'ข้อสรุปการพิจารณาคดี', type: 'textarea' },
-        { name: 'file_link', label: 'ไฟล์เอกสารบันทึกข้อตกลงแนบ', type: 'file' },
-        { name: 'reporter_name', label: 'ชื่อผู้บันทึก', type: 'text', required: true },
-        { name: 'reporter_phone', label: 'เบอร์ติดต่อผู้บันทึก', type: 'text' },
-        { name: 'source_info', label: 'ชื่อผู้ประสานงาน', type: 'text' },
-        { name: 'source_contact', label: 'เบอร์ติดต่อผู้ประสานงาน', type: 'text' },
+        { name: 'case_no', label: 'เลขคำร้อง', type: 'text', required: true, placeholder: 'เช่น กก.01/2569' },
+        { name: 'start_date_mediation', label: 'วันที่รับคำร้อง', type: 'date', required: true },
+        { 
+          name: 'case_type', 
+          label: 'ข้อพิพาท', 
+          type: 'select', 
+          required: true, 
+          options: [
+            { value: 'ทางแพ่ง', label: 'ทางแพ่ง' },
+            { value: 'ทางอาญา', label: 'ทางอาญา' }
+          ] 
+        },
+        { 
+          name: 'civil_dispute_type', 
+          label: 'ประเภทข้อพิพาททางแพ่ง', 
+          type: 'select', 
+          required: true, 
+          conditional: { field: 'case_type', showIf: 'ทางแพ่ง' },
+          options: [
+            { value: 'การชำระหนี้', label: 'การชำระหนี้' },
+            { value: 'การใช้สิทธิเรียกร้องของลูกหนี้', label: 'การใช้สิทธิเรียกร้องของลูกหนี้' },
+            { value: 'การหมั้น', label: 'การหมั้น' },
+            { value: 'ขายตามตัวอย่าง ขายตามคำพรรณนา ขายเผื่อชอบ', label: 'ขายตามตัวอย่าง ขายตามคำพรรณนา ขายเผื่อชอบ' },
+            { value: 'ขายทอดตลาด', label: 'ขายทอดตลาด' },
+            { value: 'ขายฝาก', label: 'ขายฝาก' },
+            { value: 'ความรับผิดเพื่อละเมิด', label: 'ความรับผิดเพื่อละเมิด' },
+            { value: 'ค่าสินไหมทดแทนเพื่อละเมิด', label: 'ค่าสินไหมทดแทนเพื่อละเมิด' },
+            { value: 'ค้ำประกัน', label: 'ค้ำประกัน' },
+            { value: 'จัดการงานนอกสั่ง', label: 'จัดการงานนอกสั่ง' },
+            { value: 'จ้างทำของ', label: 'จ้างทำของ' },
+            { value: 'จ้างแรงงาน', label: 'จ้างแรงงาน' },
+            { value: 'จำนอง', label: 'จำนอง' },
+            { value: 'จำนำ', label: 'จำนำ' },
+            { value: 'เช็ค', label: 'เช็ค' },
+            { value: 'เช่าซื้อ', label: 'เช่าซื้อ' },
+            { value: 'เช่าทรัพย์', label: 'เช่าทรัพย์' },
+            { value: 'ซื้อขาย', label: 'ซื้อขาย' },
+            { value: 'ตั๋วเงิน', label: 'ตั๋วเงิน' },
+            { value: 'ตัวแทน', label: 'ตัวแทน' },
+            { value: 'นายหน้า', label: 'นายหน้า' },
+            { value: 'นิติบุคคล', label: 'นิติบุคคล' },
+            { value: 'บริษัทจำกัด', label: 'บริษัทจำกัด' },
+            { value: 'บัญชีเดินสะพัด', label: 'บัญชีเดินสะพัด' },
+            { value: 'บุริมสิทธิ', label: 'บุริมสิทธิ' },
+            { value: 'ประกันภัย', label: 'ประกันภัย' },
+            { value: 'ปลดหนี้', label: 'ปลดหนี้' },
+            { value: 'แปลงหนี้ใหม่', label: 'แปลงหนี้ใหม่' },
+            { value: 'ฝากทรัพย์', label: 'ฝากทรัพย์' },
+            { value: 'พินัยกรรม', label: 'พินัยกรรม' },
+            { value: 'เพิกถอนการฉ้อฉล', label: 'เพิกถอนการฉ้อฉล' },
+            { value: 'มรดก', label: 'มรดก' },
+            { value: 'มัดจำและกำหนดเบี้ยปรับ', label: 'มัดจำและกำหนดเบี้ยปรับ' },
+            { value: 'มูลนิธิ', label: 'มูลนิธิ' },
+            { value: 'ยืม/กู้ยืมประมวลกฎหมายแพ่งและพาณิชย์', label: 'ยืม/กู้ยืมประมวลกฎหมายแพ่งและพาณิชย์' },
+            { value: 'รับขน', label: 'รับขน' },
+            { value: 'รับขนของ', label: 'รับขนของ' },
+            { value: 'รับคนโดยสาร', label: 'รับคนโดยสาร' },
+            { value: 'รับช่วงสิทธิ', label: 'รับช่วงสิทธิ' },
+            { value: 'ละเมิด', label: 'ละเมิด' },
+            { value: 'ลาภมิควรได้', label: 'ลาภมิควรได้' },
+            { value: 'แลกเปลี่ยน', label: 'แลกเปลี่ยน' },
+            { value: 'สมาคม', label: 'สมาคม' },
+            { value: 'สัญญา', label: 'สัญญา' },
+            { value: 'สิทธิยึดหน่วง', label: 'สิทธิยึดหน่วง' },
+            { value: 'หนี้', label: 'หนี้' },
+            { value: 'หนี้เกลื่อนกลืนกัน', label: 'หนี้เกลื่อนกลืนกัน' },
+            { value: 'หักกลบลบหนี้', label: 'หักกลบลบหนี้' },
+            { value: 'ห้างหุ้นส่วนสามัญ', label: 'ห้างหุ้นส่วนสามัญ' },
+            { value: 'ให้', label: 'ให้' },
+            { value: 'โอนสิทธิเรียกร้อง', label: 'โอนสิทธิเรียกร้อง' }
+          ]
+        },
+        { name: 'value_in_dispute', label: 'จำนวนทุนทรัพย์', type: 'number', placeholder: 'ใส่ 0 หากไม่มีทุนทรัพย์' },
+        { 
+          name: 'case_final', 
+          label: 'ผลการไกล่เกลี่ย', 
+          type: 'select', 
+          required: true, 
+          options: [
+            { value: 'จำหน่าย', label: 'จำหน่าย' },
+            { value: 'ยุติ', label: 'ยุติ' },
+            { value: 'ตกลงกันไม่ได้', label: 'ตกลงกันไม่ได้' },
+            { value: 'ตกลงกันได้', label: 'ตกลงกันได้' }
+          ] 
+        },
+        { name: 'summary', label: 'สรุปสาระสำคัญ', type: 'textarea', placeholder: 'สรุปสาระสำคัญของการไกล่เกลี่ย' },
+        { name: 'reporter_name', label: 'ชื่อผู้รายงาน/ผู้บันทึก', type: 'text', required: true },
+        { 
+          name: 'reporter_phone', 
+          label: 'เบอร์โทรศัพท์ผู้บันทึก', 
+          type: 'text', 
+          required: true, 
+          placeholder: 'เช่น 0812345678',
+          pattern: '^0[0-9]{8,9}$',
+          title: 'กรุณากรอกเบอร์โทรศัพท์ให้ถูกต้อง (เช่น 0812345678)' 
+        },
+        { name: 'file_link', label: 'แนบไฟล์เอกสาร (PDF)', type: 'file' }
       ],
       columns: [
-        { key: 'case_no', label: 'เลขคดี' },
-        { key: 'case_type', label: 'ประเภทคดี' },
-        { key: 'value_in_dispute', label: 'ทุนทรัพย์', format: (val) => `${parseFloat(val).toLocaleString()} บาท` },
+        { key: 'case_no', label: 'เลขคำร้อง' },
+        { key: 'case_type', label: 'ข้อพิพาท' },
+        { key: 'value_in_dispute', label: 'ทุนทรัพย์', format: (val) => val ? `${parseFloat(val).toLocaleString()} บาท` : '0 บาท' },
         { key: 'case_final', label: 'ผลการไกล่เกลี่ย' },
-        { key: 'reporter_name', label: 'ผู้บันทึก' },
+        { key: 'reporter_name', label: 'ผู้รายงาน' },
       ]
     },
     other_laws_reports: {
@@ -549,6 +602,67 @@ export default function CategoryPage({ params }: { params: Promise<{ category: s
     }
   };
 
+  const handleMultipleFilesUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setUploading(true);
+    try {
+      const newUrls: string[] = [];
+      
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        
+        // 1. Generate unique file name
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${category}_${Date.now()}_${i}.${fileExt}`;
+        const filePath = `${user?.id}/${fileName}`;
+
+        // 2. Upload to Supabase Storage
+        const { error } = await supabase.storage
+          .from('documents')
+          .upload(filePath, file, {
+            cacheControl: '3600',
+            upsert: true
+          });
+
+        if (error) throw error;
+
+        // 3. Get Public URL
+        const { data: { publicUrl } } = supabase.storage
+          .from('documents')
+          .getPublicUrl(filePath);
+
+        newUrls.push(publicUrl);
+      }
+
+      // Append to existing file_links
+      const currentLinks = formData.file_link ? formData.file_link.split(',') : [];
+      const updatedLinks = [...currentLinks, ...newUrls].filter(Boolean).join(',');
+
+      setFormData((prev: any) => ({ ...prev, file_link: updatedLinks }));
+
+      Swal.fire({
+        icon: 'success',
+        title: `อัปโหลดสำเร็จ ${files.length} ไฟล์`,
+        timer: 1500,
+        showConfirmButton: false
+      });
+
+    } catch (err: any) {
+      console.error('Storage upload error:', err);
+      Swal.fire('Upload Failed', 'ไม่สามารถอัปโหลดไฟล์ได้บางไฟล์: ' + err.message, 'error');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDeleteUploadedFile = (urlToDelete: string) => {
+    const currentLinks = formData.file_link ? formData.file_link.split(',') : [];
+    const updatedLinks = currentLinks.filter((url: string) => url !== urlToDelete).join(',');
+    setFormData((prev: any) => ({ ...prev, file_link: updatedLinks }));
+  };
+
   const handleOpenAddModal = () => {
     setEditingId(null);
     setUploadedFileUrl('');
@@ -566,13 +680,33 @@ export default function CategoryPage({ params }: { params: Promise<{ category: s
       }
     });
 
+    if (category === 'ems_reports') {
+      initialForm.case_type = 'ทางแพ่ง';
+      initialForm.civil_dispute_type = 'การชำระหนี้';
+    }
+
     setFormData(initialForm);
     setModalOpen(true);
   };
 
   const handleOpenEditModal = (item: any) => {
     setEditingId(item.id);
-    setFormData(item);
+    
+    let initialForm = { ...item };
+    if (category === 'ems_reports' && item.case_type) {
+      if (item.case_type.startsWith('ทางแพ่ง (')) {
+        const civilType = item.case_type.replace('ทางแพ่ง (', '').replace(')', '');
+        initialForm.case_type = 'ทางแพ่ง';
+        initialForm.civil_dispute_type = civilType;
+      } else if (item.case_type.startsWith('ทางแพ่ง')) {
+        initialForm.case_type = 'ทางแพ่ง';
+        initialForm.civil_dispute_type = 'การชำระหนี้';
+      } else {
+        initialForm.case_type = item.case_type;
+        initialForm.civil_dispute_type = '';
+      }
+    }
+    setFormData(initialForm);
     
     if (item.file_link) {
       setUploadedFileUrl(item.file_link);
@@ -599,6 +733,15 @@ export default function CategoryPage({ params }: { params: Promise<{ category: s
 
       // Clean joined profiles fields from payload
       delete payload.profiles;
+
+      if (category === 'ems_reports') {
+        // Combine case_type and civil_dispute_type into case_type column
+        if (payload.case_type === 'ทางแพ่ง') {
+          payload.case_type = `ทางแพ่ง (${payload.civil_dispute_type || 'การชำระหนี้'})`;
+        }
+        // Remove civil_dispute_type so it doesn't cause Supabase error
+        delete payload.civil_dispute_type;
+      }
 
       let responseError = null;
 
@@ -746,15 +889,25 @@ export default function CategoryPage({ params }: { params: Promise<{ category: s
                     ))}
                     <td className="p-4 text-center">
                       {item.file_link ? (
-                        <a
-                          href={item.file_link}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-800 hover:bg-indigo-500/10 text-indigo-400 hover:text-indigo-300 rounded border border-slate-700 hover:border-indigo-500/20 transition-all font-medium text-[10px]"
-                        >
-                          <Download className="h-3 w-3" />
-                          <span>ดูเอกสาร</span>
-                        </a>
+                        <div className="flex flex-col gap-1 items-center">
+                          {item.file_link.split(',').map((link: string, idx: number) => {
+                            const fileName = link.split('/').pop() || `เอกสาร ${idx + 1}`;
+                            const cleanName = fileName.includes('_') ? fileName.split('_').slice(1).join('_') : fileName;
+                            return (
+                              <a
+                                key={idx}
+                                href={link}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-slate-800 hover:bg-indigo-500/10 text-indigo-400 hover:text-indigo-300 rounded border border-slate-700 hover:border-indigo-500/20 transition-all font-medium text-[10px] max-w-[120px] truncate"
+                                title={cleanName}
+                              >
+                                <Download className="h-2.5 w-2.5 shrink-0" />
+                                <span className="truncate">{cleanName}</span>
+                              </a>
+                            );
+                          })}
+                        </div>
                       ) : (
                         <span className="text-slate-600 text-[10px] font-light">ไม่มีไฟล์</span>
                       )}
@@ -849,41 +1002,44 @@ export default function CategoryPage({ params }: { params: Promise<{ category: s
                     </span>
                   </div>
 
-                  <div className="space-y-2">
+                  <div className="space-y-3">
                     <p className="text-[10px] text-slate-400 leading-4">
-                      พิมพ์หรือก๊อปปี้วางข้อความดิบ หรือกดปุ่มไมโครโฟนเพื่อพูดเล่าเรื่อง (เช่น เลขคดี ทุนทรัพย์ ผลการตัดสิน) แล้วสั่งงานให้ AI แยกจำแนกกรอกฟอร์มได้ทันที
+                      กดปุ่มไมค์ขนาดใหญ่เพื่อเริ่มพูดเล่ารายละเอียดทั้งหมดทีเดียว (สคริปต์) หรือพิมพ์ข้อความ จากนั้นคลิกปุ่ม AI เพื่อแยกแยะกรอกฟอร์มแบบอัตโนมัติ
                     </p>
 
-                    <div className="relative">
+                    <div className="flex flex-col items-center justify-center p-4 bg-slate-950/40 rounded-xl border border-slate-800/80 space-y-2 relative overflow-hidden">
+                      {isListening ? (
+                        <button
+                          type="button"
+                          onClick={stopListening}
+                          className="w-14 h-14 bg-rose-500 hover:bg-rose-600 text-white rounded-full flex items-center justify-center cursor-pointer transition-all shadow-lg shadow-rose-500/30 relative"
+                          title="หยุดบันทึกเสียง"
+                        >
+                          <span className="absolute inset-0 rounded-full bg-rose-500/30 animate-ping" />
+                          <Mic className="h-6 w-6 animate-pulse" />
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={startListening}
+                          className="w-14 h-14 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full flex items-center justify-center cursor-pointer transition-all shadow-lg shadow-indigo-600/30 hover:scale-105"
+                          title="เริ่มพูดบรรยายรายละเอียด"
+                        >
+                          <Mic className="h-6 w-6" />
+                        </button>
+                      )}
+                      
+                      <span className="text-[9px] font-semibold text-slate-405">
+                        {isListening ? "🔴 กำลังฟังเสียงพูดของคุณ..." : "🎤 กดเพื่อพูดเล่าเรื่อง (อ่านสคริป) ทั้งหมด"}
+                      </span>
+
                       <textarea
                         rows={2}
-                        placeholder={isListening ? "🎙️ กำลังฟังเสียงพูดของคุณ... กรุณาเล่าคดี..." : "พิมพ์เล่าเรื่องคดี หรือวางข้อความ เช่น: เลขคดี กก.02/69 คดีกู้ยืมเงิน ทุนทรัพย์สี่หมื่น..."}
+                        placeholder="ข้อความที่ถอดความได้ จะปรากฏตรงนี้ และคุณสามารถพิมพ์แก้ไขเพิ่มเติมได้..."
                         value={aiStoryText}
                         onChange={(e) => setAiStoryText(e.target.value)}
-                        className="w-full bg-slate-950 border border-slate-800/80 rounded-xl py-2 px-3 pr-10 text-[11px] text-slate-200 placeholder-slate-600 focus:outline-none focus:border-indigo-500 transition-all resize-none min-h-[50px]"
+                        className="w-full bg-slate-950 border border-slate-800/80 rounded-xl py-2 px-3 text-[10px] text-slate-200 placeholder-slate-600 focus:outline-none focus:border-indigo-500 transition-all resize-none min-h-[50px] mt-1"
                       />
-                      
-                      <div className="absolute right-2.5 bottom-2.5 flex items-center gap-1.5">
-                        {isListening ? (
-                          <button
-                            type="button"
-                            onClick={stopListening}
-                            className="p-1.5 bg-rose-500 hover:bg-rose-600 text-white rounded-lg flex items-center justify-center animate-pulse cursor-pointer shadow-lg shadow-rose-500/10"
-                            title="หยุดบันทึกเสียง"
-                          >
-                            <Mic className="h-3.5 w-3.5" />
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={startListening}
-                            className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg flex items-center justify-center cursor-pointer transition-colors"
-                            title="พูดเล่าเรื่อง"
-                          >
-                            <Mic className="h-3.5 w-3.5" />
-                          </button>
-                        )}
-                      </div>
                     </div>
 
                     <button
@@ -921,33 +1077,67 @@ export default function CategoryPage({ params }: { params: Promise<{ category: s
                     </label>
 
                     {field.type === 'text' && (
-                      <input
-                        type="text"
-                        placeholder={field.placeholder}
-                        value={formData[field.name] || ''}
-                        onChange={(e) => setFormData((prev: any) => ({ ...prev, [field.name]: e.target.value }))}
-                        className={`w-full bg-slate-950 border rounded-xl py-2 px-3 text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 transition-all text-xs ${
-                          highlightFields[field.name] 
-                            ? 'border-indigo-500/80 bg-indigo-500/5 ring-1 ring-indigo-500/30 animate-pulse' 
-                            : 'border-slate-800'
-                        }`}
-                        required={field.required}
-                      />
+                      <div className="relative flex items-center">
+                        <input
+                          type="text"
+                          placeholder={field.placeholder}
+                          value={formData[field.name] || ''}
+                          onChange={(e) => setFormData((prev: any) => ({ ...prev, [field.name]: e.target.value }))}
+                          pattern={field.pattern}
+                          title={field.title}
+                          className={`w-full bg-slate-950 border rounded-xl py-2 px-3 pr-9 text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 transition-all text-xs ${
+                            highlightFields[field.name] 
+                              ? 'border-indigo-500/80 bg-indigo-500/5 ring-1 ring-indigo-500/30 animate-pulse' 
+                              : activeVoiceField === field.name
+                                ? 'border-rose-500 bg-rose-500/5 ring-1 ring-rose-500/30'
+                                : 'border-slate-800'
+                          }`}
+                          required={field.required}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => toggleFieldVoice(field.name)}
+                          className={`absolute right-2.5 p-1 rounded-md transition-all cursor-pointer ${
+                            activeVoiceField === field.name
+                              ? 'text-rose-400 bg-rose-500/10 animate-pulse'
+                              : 'text-slate-500 hover:text-slate-300'
+                          }`}
+                          title="พูดเพื่อป้อนข้อมูล"
+                        >
+                          {activeVoiceField === field.name ? <MicOff className="h-3.5 w-3.5" /> : <Mic className="h-3.5 w-3.5" />}
+                        </button>
+                      </div>
                     )}
 
                     {field.type === 'number' && (
-                      <input
-                        type="number"
-                        placeholder={field.placeholder}
-                        value={formData[field.name] || ''}
-                        onChange={(e) => setFormData((prev: any) => ({ ...prev, [field.name]: e.target.value }))}
-                        className={`w-full bg-slate-950 border rounded-xl py-2 px-3 text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 transition-all text-xs ${
-                          highlightFields[field.name] 
-                            ? 'border-indigo-500/80 bg-indigo-500/5 ring-1 ring-indigo-500/30 animate-pulse' 
-                            : 'border-slate-800'
-                        }`}
-                        required={field.required}
-                      />
+                      <div className="relative flex items-center">
+                        <input
+                          type="number"
+                          placeholder={field.placeholder}
+                          value={formData[field.name] || ''}
+                          onChange={(e) => setFormData((prev: any) => ({ ...prev, [field.name]: e.target.value }))}
+                          className={`w-full bg-slate-950 border rounded-xl py-2 px-3 pr-9 text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 transition-all text-xs ${
+                            highlightFields[field.name] 
+                              ? 'border-indigo-500/80 bg-indigo-500/5 ring-1 ring-indigo-500/30 animate-pulse' 
+                              : activeVoiceField === field.name
+                                ? 'border-rose-500 bg-rose-500/5 ring-1 ring-rose-500/30'
+                                : 'border-slate-800'
+                          }`}
+                          required={field.required}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => toggleFieldVoice(field.name)}
+                          className={`absolute right-2.5 p-1 rounded-md transition-all cursor-pointer ${
+                            activeVoiceField === field.name
+                              ? 'text-rose-400 bg-rose-500/10 animate-pulse'
+                              : 'text-slate-500 hover:text-slate-300'
+                          }`}
+                          title="พูดเพื่อป้อนข้อมูล"
+                        >
+                          {activeVoiceField === field.name ? <MicOff className="h-3.5 w-3.5" /> : <Mic className="h-3.5 w-3.5" />}
+                        </button>
+                      </div>
                     )}
 
                     {field.type === 'date' && (
@@ -965,18 +1155,34 @@ export default function CategoryPage({ params }: { params: Promise<{ category: s
                     )}
 
                     {field.type === 'textarea' && (
-                      <textarea
-                        rows={4}
-                        placeholder={field.placeholder}
-                        value={formData[field.name] || ''}
-                        onChange={(e) => setFormData((prev: any) => ({ ...prev, [field.name]: e.target.value }))}
-                        className={`w-full bg-slate-950 border rounded-xl py-2 px-3 text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 transition-all text-xs ${
-                          highlightFields[field.name] 
-                            ? 'border-indigo-500/80 bg-indigo-500/5 ring-1 ring-indigo-500/30 animate-pulse' 
-                            : 'border-slate-800'
-                        }`}
-                        required={field.required}
-                      />
+                      <div className="relative flex items-start">
+                        <textarea
+                          rows={4}
+                          placeholder={field.placeholder}
+                          value={formData[field.name] || ''}
+                          onChange={(e) => setFormData((prev: any) => ({ ...prev, [field.name]: e.target.value }))}
+                          className={`w-full bg-slate-950 border rounded-xl py-2 px-3 pr-9 text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 transition-all text-xs ${
+                            highlightFields[field.name] 
+                              ? 'border-indigo-500/80 bg-indigo-500/5 ring-1 ring-indigo-500/30 animate-pulse' 
+                              : activeVoiceField === field.name
+                                ? 'border-rose-500 bg-rose-500/5 ring-1 ring-rose-500/30'
+                                : 'border-slate-800'
+                          }`}
+                          required={field.required}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => toggleFieldVoice(field.name)}
+                          className={`absolute right-2.5 top-2.5 p-1 rounded-md transition-all cursor-pointer ${
+                            activeVoiceField === field.name
+                              ? 'text-rose-400 bg-rose-500/10 animate-pulse'
+                              : 'text-slate-500 hover:text-slate-300'
+                          }`}
+                          title="พูดเพื่อป้อนข้อมูล"
+                        >
+                          {activeVoiceField === field.name ? <MicOff className="h-3.5 w-3.5" /> : <Mic className="h-3.5 w-3.5" />}
+                        </button>
+                      </div>
                     )}
 
                     {field.type === 'select' && field.options && (
@@ -1000,38 +1206,85 @@ export default function CategoryPage({ params }: { params: Promise<{ category: s
                       <div className="bg-slate-950 border border-dashed border-slate-800 rounded-xl p-4 flex flex-col items-center">
                         <Upload className="h-6 w-6 text-slate-500 mb-2" />
                         
-                        {uploadedFileUrl ? (
-                          <div className="flex items-center gap-2 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 p-2.5 rounded-lg w-full max-w-xs justify-between">
-                            <span className="truncate max-w-[180px] text-[10px]">{uploadedFileName}</span>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setUploadedFileUrl('');
-                                setUploadedFileName('');
-                                setFormData((prev: any) => ({ ...prev, file_link: '' }));
-                              }}
-                              className="text-indigo-400 hover:text-red-400 transition-colors"
-                            >
-                              <X className="h-3.5 w-3.5" />
-                            </button>
+                        {category === 'ems_reports' ? (
+                          <div className="w-full space-y-3">
+                            {formData.file_link ? (
+                              <div className="space-y-2">
+                                {formData.file_link.split(',').map((link: string, idx: number) => {
+                                  const fileName = link.split('/').pop() || `ไฟล์ ${idx + 1}`;
+                                  const cleanName = fileName.includes('_') ? fileName.split('_').slice(1).join('_') : fileName;
+                                  return (
+                                    <div key={idx} className="flex items-center gap-2 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 p-2 rounded-lg w-full justify-between text-[10px]">
+                                      <span className="truncate max-w-[220px]" title={cleanName}>{cleanName}</span>
+                                      <div className="flex gap-2.5 shrink-0">
+                                        <a href={link} target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">ดูไฟล์</a>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleDeleteUploadedFile(link)}
+                                          className="text-rose-400 hover:text-rose-300 transition-colors"
+                                        >
+                                          ลบ
+                                        </button>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            ) : null}
+
+                            <div className="flex flex-col items-center pt-2">
+                              <input
+                                type="file"
+                                id="file-upload-multi"
+                                className="hidden"
+                                multiple
+                                accept=".pdf"
+                                onChange={handleMultipleFilesUpload}
+                                disabled={uploading}
+                              />
+                              <label
+                                htmlFor="file-upload-multi"
+                                className="cursor-pointer bg-slate-900 hover:bg-slate-800 border border-slate-800 text-[10px] text-slate-300 font-semibold px-3 py-1.5 rounded-lg hover:text-white transition-colors"
+                              >
+                                {uploading ? 'กำลังอัปโหลด...' : 'เลือกไฟล์ PDF เพิ่ม (อัปโหลดได้หลายไฟล์)'}
+                              </label>
+                              <span className="text-[10px] text-slate-600 mt-1.5 font-light">รองรับเฉพาะไฟล์ PDF เท่านั้น</span>
+                            </div>
                           </div>
                         ) : (
-                          <div className="flex flex-col items-center">
-                            <input
-                              type="file"
-                              id="file-upload"
-                              className="hidden"
-                              onChange={handleFileUpload}
-                              disabled={uploading}
-                            />
-                            <label
-                              htmlFor="file-upload"
-                              className="cursor-pointer bg-slate-900 hover:bg-slate-800 border border-slate-800 text-[10px] text-slate-300 font-semibold px-3 py-1.5 rounded-lg hover:text-white transition-colors"
-                            >
-                              {uploading ? 'กำลังอัปโหลด...' : 'เลือกไฟล์อัปโหลด'}
-                            </label>
-                            <span className="text-[10px] text-slate-600 mt-1.5 font-light">ขนาดจำกัด 10MB (ไฟล์ PDF หรือ รูปภาพ)</span>
-                          </div>
+                          uploadedFileUrl ? (
+                            <div className="flex items-center gap-2 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 p-2.5 rounded-lg w-full max-w-xs justify-between">
+                              <span className="truncate max-w-[180px] text-[10px]">{uploadedFileName}</span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setUploadedFileUrl('');
+                                  setUploadedFileName('');
+                                  setFormData((prev: any) => ({ ...prev, file_link: '' }));
+                                }}
+                                className="text-indigo-400 hover:text-red-400 transition-colors"
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="flex flex-col items-center">
+                              <input
+                                type="file"
+                                id="file-upload"
+                                className="hidden"
+                                onChange={handleFileUpload}
+                                disabled={uploading}
+                              />
+                              <label
+                                htmlFor="file-upload"
+                                className="cursor-pointer bg-slate-900 hover:bg-slate-800 border border-slate-800 text-[10px] text-slate-300 font-semibold px-3 py-1.5 rounded-lg hover:text-white transition-colors"
+                              >
+                                {uploading ? 'กำลังอัปโหลด...' : 'เลือกไฟล์อัปโหลด'}
+                              </label>
+                              <span className="text-[10px] text-slate-600 mt-1.5 font-light">ขนาดจำกัด 10MB (ไฟล์ PDF หรือ รูปภาพ)</span>
+                            </div>
+                          )
                         )}
                       </div>
                     )}

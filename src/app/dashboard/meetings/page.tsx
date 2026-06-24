@@ -1,13 +1,14 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { 
   Plus, Edit, Trash2, Search, ArrowLeft, Mic, MicOff, Printer, 
-  QrCode, FileText, CheckCircle, AlertTriangle, Users, Loader2, Save, X, RefreshCw
+  QrCode, FileText, CheckCircle, AlertTriangle, Users, Loader2, Save, X, RefreshCw, Sparkles
 } from 'lucide-react';
 import Swal from 'sweetalert2';
+import { useSpeechRecognition } from '@/hooks/useSpeechRecognition';
 
 interface MeetingAttendee {
   id: string;
@@ -26,9 +27,142 @@ export default function MeetingsPage() {
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
   
-  // Speech recognition state
-  const [isListening, setIsListening] = useState<Record<string, boolean>>({});
-  const [recognition, setRecognition] = useState<any>(null);
+  // AI Voice & Text integration states
+  const [aiStoryText, setAiStoryText] = useState('');
+  const [aiParsing, setAiParsing] = useState(false);
+  const [highlightFields, setHighlightFields] = useState<Record<string, boolean>>({});
+
+  // Field Speech Recognition state
+  const [activeVoiceField, setActiveVoiceField] = useState<string | null>(null);
+  const activeVoiceFieldRef = useRef<string | null>(null);
+
+  // Hook for global dictation (Large mic button)
+  const {
+    isListening: isGlobalListening,
+    startListening: startGlobalListening,
+    stopListening: stopGlobalListening
+  } = useSpeechRecognition({
+    onResult: (text, isFinal) => {
+      if (isFinal) {
+        setAiStoryText(prev => (prev ? prev + ' ' + text : text));
+      }
+    }
+  });
+
+  // Hook for single field dictation (Small mic buttons)
+  const {
+    isListening: isFieldListening,
+    startListening: startFieldListening,
+    stopListening: stopFieldListening
+  } = useSpeechRecognition({
+    continuous: true,
+    interimResults: false,
+    onResult: (text, isFinal) => {
+      const currentField = activeVoiceFieldRef.current;
+      if (currentField && isFinal) {
+        setFormData((prev: any) => {
+          const currentVal = prev[currentField] || '';
+          return {
+            ...prev,
+            [currentField]: currentVal + (currentVal ? ' ' : '') + text
+          };
+        });
+      }
+    },
+    onEnd: () => {
+      setActiveVoiceField(null);
+      activeVoiceFieldRef.current = null;
+    }
+  });
+
+  const toggleFieldVoice = (fieldName: string) => {
+    if (activeVoiceFieldRef.current === fieldName) {
+      stopFieldListening();
+    } else {
+      if (activeVoiceFieldRef.current) {
+        stopFieldListening();
+      }
+      activeVoiceFieldRef.current = fieldName;
+      setActiveVoiceField(fieldName);
+      startFieldListening();
+    }
+  };
+
+  const handleAIParsing = async () => {
+    if (!aiStoryText || !aiStoryText.trim()) {
+      Swal.fire('เตือน', 'กรุณากรอกหรือพูดเล่ารายละเอียดก่อนกดประมวลผล', 'warning');
+      return;
+    }
+
+    setAiParsing(true);
+    try {
+      const res = await fetch('/api/ai/parse-report', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          story: aiStoryText,
+          fieldsSchema: [
+            { name: 'meeting_name', label: 'ชื่อการประชุม', type: 'text' },
+            { name: 'meeting_date', label: 'วันที่ประชุม', type: 'date' },
+            { name: 'location', label: 'สถานที่ประชุม', type: 'text' },
+            { name: 'recorder_name', label: 'ชื่อผู้จดรายงาน', type: 'text' },
+            { name: 'reporter_phone', label: 'เบอร์ติดต่อผู้จดรายงาน', type: 'text' },
+            { name: 'reporter_name', label: 'ผู้มีอำนาจลงนาม', type: 'text' },
+            { name: 'reporter_position', label: 'ตำแหน่งผู้มีอำนาจลงนาม', type: 'select', options: [
+              { value: 'ประธานคณะทำงาน', label: 'ประธานคณะทำงาน' },
+              { value: 'รองประธานคณะทำงาน', label: 'รองประธานคณะทำงาน' }
+            ]},
+            { name: 'source_info', label: 'ชื่อผู้ประสานงานจัดงาน', type: 'text' },
+            { name: 'source_contact', label: 'เบอร์โทรติดต่อผู้ประสานงาน', type: 'text' },
+            { name: 'invitation_text', label: 'เนื้อหาหนังสือส่งเชิญเข้าร่วมประชุม', type: 'textarea' }
+          ]
+        })
+      });
+
+      const result = await res.json();
+
+      if (!res.ok) {
+        throw new Error(result.error || 'เกิดข้อผิดพลาดในการประมวลผลของ AI');
+      }
+
+      const parsedData = result.data;
+      if (parsedData) {
+        const newFormData = { ...formData };
+        const fieldsFilled: Record<string, boolean> = {};
+
+        Object.keys(parsedData).forEach(key => {
+          if (parsedData[key] !== undefined && parsedData[key] !== '') {
+            newFormData[key] = parsedData[key];
+            fieldsFilled[key] = true;
+          }
+        });
+
+        setFormData(newFormData);
+        setHighlightFields(fieldsFilled);
+        setAiStoryText('');
+
+        Swal.fire({
+          icon: 'success',
+          title: 'ถอดข้อมูลลงฟอร์มสำเร็จ',
+          text: 'กรุณาตรวจสอบความถูกต้องและแก้ไขจุดที่ไฮไลท์หากจำเป็น',
+          timer: 2000,
+          showConfirmButton: false
+        });
+
+        setTimeout(() => {
+          setHighlightFields({});
+        }, 6000);
+      }
+
+    } catch (err: any) {
+      console.error(err);
+      Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
+    } finally {
+      setAiParsing(false);
+    }
+  };
 
   // Form states
   const [formData, setFormData] = useState<any>({
@@ -49,20 +183,6 @@ export default function MeetingsPage() {
     agenda_5: '',
     invitation_text: ''
   });
-
-  useEffect(() => {
-    // Initialize Speech Recognition
-    if (typeof window !== 'undefined') {
-      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      if (SpeechRecognition) {
-        const rec = new SpeechRecognition();
-        rec.continuous = true;
-        rec.interimResults = false;
-        rec.lang = 'th-TH';
-        setRecognition(rec);
-      }
-    }
-  }, []);
 
   useEffect(() => {
     if (user && profile) {
@@ -120,48 +240,7 @@ export default function MeetingsPage() {
     }
   };
 
-  // Web Speech API handler
-  const toggleListening = (fieldKey: string) => {
-    if (!recognition) {
-      Swal.fire('คำเตือน', 'เบราว์เซอร์นี้ไม่รองรับระบบ Speech-to-Text กรุณาใช้ Google Chrome หรือ Safari', 'warning');
-      return;
-    }
 
-    if (isListening[fieldKey]) {
-      recognition.stop();
-      setIsListening(prev => ({ ...prev, [fieldKey]: false }));
-    } else {
-      // Stop any other active listening
-      recognition.stop();
-      
-      // Clear all active listening states
-      const clearedListening: Record<string, boolean> = {};
-      clearedListening[fieldKey] = true;
-      setIsListening(clearedListening);
-
-      recognition.onresult = (event: any) => {
-        const resultText = event.results[event.results.length - 1][0].transcript;
-        setFormData((prev: any) => {
-          const currentVal = prev[fieldKey] || '';
-          return {
-            ...prev,
-            [fieldKey]: currentVal + (currentVal ? ' ' : '') + resultText
-          };
-        });
-      };
-
-      recognition.onerror = (event: any) => {
-        console.error('Speech recognition error:', event.error);
-        setIsListening(prev => ({ ...prev, [fieldKey]: false }));
-      };
-
-      recognition.onend = () => {
-        setIsListening(prev => ({ ...prev, [fieldKey]: false }));
-      };
-
-      recognition.start();
-    }
-  };
 
   const handleOpenAddForm = () => {
     setEditingId(null);
@@ -452,18 +531,112 @@ export default function MeetingsPage() {
               {/* Form Input fields */}
               <div className="lg:col-span-2 bg-slate-900 border border-slate-800/80 p-6 rounded-2xl space-y-4 text-xs text-slate-300">
                 <h3 className="text-sm font-semibold text-white">รายละเอียดจัดประชุมคณะทำงาน</h3>
+
+                {/* AI Auto-fill helper box */}
+                <div className="bg-gradient-to-br from-slate-900 to-indigo-950/40 border border-indigo-500/20 rounded-2xl p-4 space-y-3 relative overflow-hidden shadow-lg shadow-indigo-950/5">
+                  <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/5 rounded-full blur-xl pointer-events-none" />
+                  
+                  <div className="flex items-center justify-between border-b border-slate-800/60 pb-2">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="h-4 w-4 text-indigo-400 animate-pulse" />
+                      <span className="font-semibold text-slate-200 text-xs">ผู้ช่วยกรอกข้อมูลอัจฉริยะด้วย AI</span>
+                    </div>
+                    <span className="text-[9px] text-indigo-400 font-medium px-2 py-0.5 rounded bg-indigo-500/10 border border-indigo-500/10">
+                      Gemini 1.5 Flash
+                    </span>
+                  </div>
+
+                  <div className="space-y-3">
+                    <p className="text-[10px] text-slate-400 leading-4">
+                      กดปุ่มไมค์ขนาดใหญ่เพื่อเริ่มพูดเล่ารายละเอียดจัดประชุมทั้งหมด (สคริปต์) เช่น ชื่อการประชุม วันที่ สถานที่ ผู้บันทึก แล้วให้ AI ดึงลงช่องให้ทันที
+                    </p>
+
+                    <div className="flex flex-col items-center justify-center p-4 bg-slate-950/40 rounded-xl border border-slate-800/80 space-y-2 relative overflow-hidden">
+                      {isGlobalListening ? (
+                        <button
+                          type="button"
+                          onClick={stopGlobalListening}
+                          className="w-12 h-12 bg-rose-500 hover:bg-rose-600 text-white rounded-full flex items-center justify-center cursor-pointer transition-all shadow-lg shadow-rose-500/30 relative"
+                          title="หยุดบันทึกเสียง"
+                        >
+                          <span className="absolute inset-0 rounded-full bg-rose-500/30 animate-ping" />
+                          <Mic className="h-5.5 w-5.5 animate-pulse" />
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={startGlobalListening}
+                          className="w-12 h-12 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full flex items-center justify-center cursor-pointer transition-all shadow-lg shadow-indigo-600/30 hover:scale-105"
+                          title="เริ่มพูดบรรยายรายละเอียด"
+                        >
+                          <Mic className="h-5.5 w-5.5" />
+                        </button>
+                      )}
+                      
+                      <span className="text-[9px] font-semibold text-slate-400">
+                        {isGlobalListening ? "🔴 กำลังฟังเสียงพูดของคุณ..." : "🎤 กดเพื่อพูดเล่าเรื่อง (อ่านสคริป) ทั้งหมด"}
+                      </span>
+
+                      <textarea
+                        rows={2}
+                        placeholder="ข้อความที่ถอดความได้ จะปรากฏตรงนี้ และคุณสามารถพิมพ์แก้ไขเพิ่มเติมได้..."
+                        value={aiStoryText}
+                        onChange={(e) => setAiStoryText(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-[10px] text-slate-200 placeholder-slate-600 focus:outline-none focus:border-indigo-500 transition-all resize-none min-h-[50px] mt-1"
+                      />
+                    </div>
+
+                    <button
+                      type="button"
+                      disabled={aiParsing || !aiStoryText.trim()}
+                      onClick={handleAIParsing}
+                      className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-30 disabled:hover:bg-indigo-600 text-white font-semibold py-2 px-3 rounded-xl flex items-center justify-center gap-1.5 cursor-pointer shadow-lg shadow-indigo-600/10 transition-all text-[11px]"
+                    >
+                      {aiParsing ? (
+                        <>
+                          <Loader2 className="animate-spin h-3.5 w-3.5" />
+                          <span>AI กำลังแยกวิเคราะห์ข้อมูล...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="h-3.5 w-3.5 text-indigo-200" />
+                          <span>สั่ง AI กรอกข้อมูลลงฟอร์ม</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
                 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5 col-span-2">
                     <label className="text-slate-400 font-medium">หัวข้อ/ชื่อการประชุม <span className="text-rose-500">*</span></label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="เช่น ประชุมทบทวนแผนคดีและพิจารณาประเมิน"
-                      value={formData.meeting_name}
-                      onChange={(e) => setFormData((p: any) => ({ ...p, meeting_name: e.target.value }))}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-white focus:outline-none focus:border-indigo-500"
-                    />
+                    <div className="relative flex items-center">
+                      <input
+                        type="text"
+                        required
+                        placeholder="เช่น ประชุมทบทวนแผนคดีและพิจารณาประเมิน"
+                        value={formData.meeting_name}
+                        onChange={(e) => setFormData((p: any) => ({ ...p, meeting_name: e.target.value }))}
+                        className={`w-full bg-slate-950 border rounded-xl py-2 px-3 pr-9 text-white focus:outline-none focus:border-indigo-500 transition-all ${
+                          highlightFields.meeting_name
+                            ? 'border-indigo-500/80 bg-indigo-500/5 ring-1 ring-indigo-500/30 animate-pulse'
+                            : activeVoiceField === 'meeting_name'
+                              ? 'border-rose-500 bg-rose-500/5 ring-1 ring-rose-500/30'
+                              : 'border-slate-800'
+                        }`}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => toggleFieldVoice('meeting_name')}
+                        className={`absolute right-2.5 p-1 rounded-md transition-all cursor-pointer ${
+                          activeVoiceField === 'meeting_name'
+                            ? 'text-rose-400 bg-rose-500/10 animate-pulse'
+                            : 'text-slate-500 hover:text-slate-300'
+                        }`}
+                      >
+                        {activeVoiceField === 'meeting_name' ? <MicOff className="h-3.5 w-3.5" /> : <Mic className="h-3.5 w-3.5" />}
+                      </button>
+                    </div>
                   </div>
                 </div>
 
@@ -475,57 +648,137 @@ export default function MeetingsPage() {
                       required
                       value={formData.meeting_date}
                       onChange={(e) => setFormData((p: any) => ({ ...p, meeting_date: e.target.value }))}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-white focus:outline-none focus:border-indigo-500"
+                      className={`w-full bg-slate-950 border rounded-xl py-2 px-3 text-white focus:outline-none focus:border-indigo-500 transition-all ${
+                        highlightFields.meeting_date
+                          ? 'border-indigo-500/80 bg-indigo-500/5 ring-1 ring-indigo-500/30 animate-pulse'
+                          : 'border-slate-800'
+                      }`}
                     />
                   </div>
 
                   <div className="space-y-1.5">
                     <label className="text-slate-400 font-medium">สถานที่จัด <span className="text-rose-500">*</span></label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="เช่น ห้องประชุมใหญ่ศูนย์ หรือ Zoom"
-                      value={formData.location}
-                      onChange={(e) => setFormData((p: any) => ({ ...p, location: e.target.value }))}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-white focus:outline-none focus:border-indigo-500"
-                    />
+                    <div className="relative flex items-center">
+                      <input
+                        type="text"
+                        required
+                        placeholder="เช่น ห้องประชุมใหญ่ศูนย์ หรือ Zoom"
+                        value={formData.location}
+                        onChange={(e) => setFormData((p: any) => ({ ...p, location: e.target.value }))}
+                        className={`w-full bg-slate-950 border rounded-xl py-2 px-3 pr-9 text-white focus:outline-none focus:border-indigo-500 transition-all ${
+                          highlightFields.location
+                            ? 'border-indigo-500/80 bg-indigo-500/5 ring-1 ring-indigo-500/30 animate-pulse'
+                            : activeVoiceField === 'location'
+                              ? 'border-rose-500 bg-rose-500/5 ring-1 ring-rose-500/30'
+                              : 'border-slate-800'
+                        }`}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => toggleFieldVoice('location')}
+                        className={`absolute right-2.5 p-1 rounded-md transition-all cursor-pointer ${
+                          activeVoiceField === 'location'
+                            ? 'text-rose-400 bg-rose-500/10 animate-pulse'
+                            : 'text-slate-500 hover:text-slate-300'
+                        }`}
+                      >
+                        {activeVoiceField === 'location' ? <MicOff className="h-3.5 w-3.5" /> : <Mic className="h-3.5 w-3.5" />}
+                      </button>
+                    </div>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <label className="text-slate-400 font-medium">ผู้จดรายงาน/ผู้บันทึก <span className="text-rose-500">*</span></label>
-                    <input
-                      type="text"
-                      required
-                      value={formData.recorder_name || ''}
-                      onChange={(e) => setFormData((p: any) => ({ ...p, recorder_name: e.target.value }))}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-white focus:outline-none focus:border-indigo-500"
-                    />
+                    <div className="relative flex items-center">
+                      <input
+                        type="text"
+                        required
+                        value={formData.recorder_name || ''}
+                        onChange={(e) => setFormData((p: any) => ({ ...p, recorder_name: e.target.value }))}
+                        className={`w-full bg-slate-950 border rounded-xl py-2 px-3 pr-9 text-white focus:outline-none focus:border-indigo-500 transition-all ${
+                          highlightFields.recorder_name
+                            ? 'border-indigo-500/80 bg-indigo-500/5 ring-1 ring-indigo-500/30 animate-pulse'
+                            : activeVoiceField === 'recorder_name'
+                              ? 'border-rose-500 bg-rose-500/5 ring-1 ring-rose-500/30'
+                              : 'border-slate-800'
+                        }`}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => toggleFieldVoice('recorder_name')}
+                        className={`absolute right-2.5 p-1 rounded-md transition-all cursor-pointer ${
+                          activeVoiceField === 'recorder_name'
+                            ? 'text-rose-400 bg-rose-500/10 animate-pulse'
+                            : 'text-slate-500 hover:text-slate-300'
+                        }`}
+                      >
+                        {activeVoiceField === 'recorder_name' ? <MicOff className="h-3.5 w-3.5" /> : <Mic className="h-3.5 w-3.5" />}
+                      </button>
+                    </div>
                   </div>
 
                   <div className="space-y-1.5">
                     <label className="text-slate-400 font-medium">เบอร์โทรศัพท์ผู้จดรายงาน</label>
-                    <input
-                      type="text"
-                      value={formData.reporter_phone || ''}
-                      onChange={(e) => setFormData((p: any) => ({ ...p, reporter_phone: e.target.value }))}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-white focus:outline-none focus:border-indigo-500"
-                    />
+                    <div className="relative flex items-center">
+                      <input
+                        type="text"
+                        value={formData.reporter_phone || ''}
+                        onChange={(e) => setFormData((p: any) => ({ ...p, reporter_phone: e.target.value }))}
+                        className={`w-full bg-slate-950 border rounded-xl py-2 px-3 pr-9 text-white focus:outline-none focus:border-indigo-500 transition-all ${
+                          highlightFields.reporter_phone
+                            ? 'border-indigo-500/80 bg-indigo-500/5 ring-1 ring-indigo-500/30 animate-pulse'
+                            : activeVoiceField === 'reporter_phone'
+                              ? 'border-rose-500 bg-rose-500/5 ring-1 ring-rose-500/30'
+                              : 'border-slate-800'
+                        }`}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => toggleFieldVoice('reporter_phone')}
+                        className={`absolute right-2.5 p-1 rounded-md transition-all cursor-pointer ${
+                          activeVoiceField === 'reporter_phone'
+                            ? 'text-rose-400 bg-rose-500/10 animate-pulse'
+                            : 'text-slate-500 hover:text-slate-300'
+                        }`}
+                      >
+                        {activeVoiceField === 'reporter_phone' ? <MicOff className="h-3.5 w-3.5" /> : <Mic className="h-3.5 w-3.5" />}
+                      </button>
+                    </div>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <label className="text-slate-400 font-medium">ผู้มีอำนาจ <span className="text-rose-500">*</span></label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="เช่น นายกมลเดช สมบูรณ์"
-                      value={formData.reporter_name || ''}
-                      onChange={(e) => setFormData((p: any) => ({ ...p, reporter_name: e.target.value }))}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-white focus:outline-none focus:border-indigo-500"
-                    />
+                    <div className="relative flex items-center">
+                      <input
+                        type="text"
+                        required
+                        placeholder="เช่น นายกมลเดช สมบูรณ์"
+                        value={formData.reporter_name || ''}
+                        onChange={(e) => setFormData((p: any) => ({ ...p, reporter_name: e.target.value }))}
+                        className={`w-full bg-slate-950 border rounded-xl py-2 px-3 pr-9 text-white focus:outline-none focus:border-indigo-500 transition-all ${
+                          highlightFields.reporter_name
+                            ? 'border-indigo-500/80 bg-indigo-500/5 ring-1 ring-indigo-500/30 animate-pulse'
+                            : activeVoiceField === 'reporter_name'
+                              ? 'border-rose-500 bg-rose-500/5 ring-1 ring-rose-500/30'
+                              : 'border-slate-800'
+                        }`}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => toggleFieldVoice('reporter_name')}
+                        className={`absolute right-2.5 p-1 rounded-md transition-all cursor-pointer ${
+                          activeVoiceField === 'reporter_name'
+                            ? 'text-rose-400 bg-rose-500/10 animate-pulse'
+                            : 'text-slate-500 hover:text-slate-300'
+                        }`}
+                      >
+                        {activeVoiceField === 'reporter_name' ? <MicOff className="h-3.5 w-3.5" /> : <Mic className="h-3.5 w-3.5" />}
+                      </button>
+                    </div>
                   </div>
 
                   <div className="space-y-1.5">
@@ -533,7 +786,11 @@ export default function MeetingsPage() {
                     <select
                       value={formData.reporter_position || 'ประธานคณะทำงาน'}
                       onChange={(e) => setFormData((p: any) => ({ ...p, reporter_position: e.target.value }))}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-white focus:outline-none focus:border-indigo-500 cursor-pointer"
+                      className={`w-full bg-slate-950 border rounded-xl py-2 px-3 text-white focus:outline-none focus:border-indigo-500 cursor-pointer transition-all ${
+                        highlightFields.reporter_position
+                          ? 'border-indigo-500/80 bg-indigo-500/5 ring-1 ring-indigo-500/30 animate-pulse'
+                          : 'border-slate-800'
+                      }`}
                     >
                       <option value="ประธานคณะทำงาน">ประธานคณะทำงาน</option>
                       <option value="รองประธานคณะทำงาน">รองประธานคณะทำงาน</option>
@@ -544,33 +801,90 @@ export default function MeetingsPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <label className="text-slate-400 font-medium">ชื่อผู้ประสานงานจัดงาน</label>
-                    <input
-                      type="text"
-                      value={formData.source_info}
-                      onChange={(e) => setFormData((p: any) => ({ ...p, source_info: e.target.value }))}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-white focus:outline-none focus:border-indigo-500"
-                    />
+                    <div className="relative flex items-center">
+                      <input
+                        type="text"
+                        value={formData.source_info}
+                        onChange={(e) => setFormData((p: any) => ({ ...p, source_info: e.target.value }))}
+                        className={`w-full bg-slate-950 border rounded-xl py-2 px-3 pr-9 text-white focus:outline-none focus:border-indigo-500 transition-all ${
+                          highlightFields.source_info
+                            ? 'border-indigo-500/80 bg-indigo-500/5 ring-1 ring-indigo-500/30 animate-pulse'
+                            : activeVoiceField === 'source_info'
+                              ? 'border-rose-500 bg-rose-500/5 ring-1 ring-rose-500/30'
+                              : 'border-slate-800'
+                        }`}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => toggleFieldVoice('source_info')}
+                        className={`absolute right-2.5 p-1 rounded-md transition-all cursor-pointer ${
+                          activeVoiceField === 'source_info'
+                            ? 'text-rose-400 bg-rose-500/10 animate-pulse'
+                            : 'text-slate-500 hover:text-slate-300'
+                        }`}
+                      >
+                        {activeVoiceField === 'source_info' ? <MicOff className="h-3.5 w-3.5" /> : <Mic className="h-3.5 w-3.5" />}
+                      </button>
+                    </div>
                   </div>
 
                   <div className="space-y-1.5">
                     <label className="text-slate-400 font-medium">เบอร์โทรติดต่อผู้ประสานงาน</label>
-                    <input
-                      type="text"
-                      value={formData.source_contact}
-                      onChange={(e) => setFormData((p: any) => ({ ...p, source_contact: e.target.value }))}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-white focus:outline-none focus:border-indigo-500"
-                    />
+                    <div className="relative flex items-center">
+                      <input
+                        type="text"
+                        value={formData.source_contact}
+                        onChange={(e) => setFormData((p: any) => ({ ...p, source_contact: e.target.value }))}
+                        className={`w-full bg-slate-950 border rounded-xl py-2 px-3 pr-9 text-white focus:outline-none focus:border-indigo-500 transition-all ${
+                          highlightFields.source_contact
+                            ? 'border-indigo-500/80 bg-indigo-500/5 ring-1 ring-indigo-500/30 animate-pulse'
+                            : activeVoiceField === 'source_contact'
+                              ? 'border-rose-500 bg-rose-500/5 ring-1 ring-rose-500/30'
+                              : 'border-slate-800'
+                        }`}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => toggleFieldVoice('source_contact')}
+                        className={`absolute right-2.5 p-1 rounded-md transition-all cursor-pointer ${
+                          activeVoiceField === 'source_contact'
+                            ? 'text-rose-400 bg-rose-500/10 animate-pulse'
+                            : 'text-slate-500 hover:text-slate-300'
+                        }`}
+                      >
+                        {activeVoiceField === 'source_contact' ? <MicOff className="h-3.5 w-3.5" /> : <Mic className="h-3.5 w-3.5" />}
+                      </button>
+                    </div>
                   </div>
                 </div>
 
                 <div className="space-y-1.5">
                   <label className="text-slate-400 font-medium">เนื้อหาหนังสือส่งเชิญเข้าร่วมประชุม</label>
-                  <textarea
-                    rows={4}
-                    value={formData.invitation_text}
-                    onChange={(e) => setFormData((p: any) => ({ ...p, invitation_text: e.target.value }))}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-white focus:outline-none focus:border-indigo-500 leading-5"
-                  />
+                  <div className="relative flex items-start">
+                    <textarea
+                      rows={4}
+                      value={formData.invitation_text}
+                      onChange={(e) => setFormData((p: any) => ({ ...p, invitation_text: e.target.value }))}
+                      className={`w-full bg-slate-950 border rounded-xl py-2 px-3 pr-9 text-white focus:outline-none focus:border-indigo-500 leading-5 transition-all ${
+                        highlightFields.invitation_text
+                          ? 'border-indigo-500/80 bg-indigo-500/5 ring-1 ring-indigo-500/30 animate-pulse'
+                          : activeVoiceField === 'invitation_text'
+                            ? 'border-rose-500 bg-rose-500/5 ring-1 ring-rose-500/30'
+                            : 'border-slate-800'
+                      }`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => toggleFieldVoice('invitation_text')}
+                      className={`absolute right-2.5 top-2.5 p-1 rounded-md transition-all cursor-pointer ${
+                        activeVoiceField === 'invitation_text'
+                          ? 'text-rose-400 bg-rose-500/10 animate-pulse'
+                          : 'text-slate-500 hover:text-slate-300'
+                      }`}
+                    >
+                      {activeVoiceField === 'invitation_text' ? <MicOff className="h-3.5 w-3.5" /> : <Mic className="h-3.5 w-3.5" />}
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -633,7 +947,7 @@ export default function MeetingsPage() {
                   { key: 'agenda_4', label: 'วาระที่ 4: เรื่องเสนอเพื่อพิจารณา', placeholder: 'การโหวตข้อพิพาท ประเมินความถูกต้อง หรือคัดกรองจัดระดับศูนย์...' },
                   { key: 'agenda_5', label: 'วาระที่ 5: เรื่องอื่นๆ', placeholder: 'ข้อสงสัยเพิ่มเติม การนัดประชุมครั้งถัดไป...' },
                 ].map(ag => {
-                  const listening = isListening[ag.key];
+                  const listening = activeVoiceField === ag.key;
                   return (
                     <div key={ag.key} className="space-y-2 border border-slate-800/60 p-4 rounded-xl bg-slate-950/20">
                       <div className="flex items-center justify-between">
@@ -641,7 +955,7 @@ export default function MeetingsPage() {
                         
                         <button
                           type="button"
-                          onClick={() => toggleListening(ag.key)}
+                          onClick={() => toggleFieldVoice(ag.key)}
                           className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border text-[10px] font-bold cursor-pointer transition-all ${
                             listening 
                               ? 'bg-rose-500/20 border-rose-500 text-rose-400 animate-pulse' 
@@ -658,7 +972,11 @@ export default function MeetingsPage() {
                         placeholder={ag.placeholder}
                         value={formData[ag.key] || ''}
                         onChange={(e) => setFormData((p: any) => ({ ...p, [ag.key]: e.target.value }))}
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-white focus:outline-none focus:border-indigo-500 leading-5"
+                        className={`w-full bg-slate-950 border rounded-xl py-2 px-3 text-white focus:outline-none focus:border-indigo-500 leading-5 transition-all ${
+                          listening
+                            ? 'border-rose-500 bg-rose-500/5 ring-1 ring-rose-500/30'
+                            : 'border-slate-800'
+                        }`}
                       />
                     </div>
                   );

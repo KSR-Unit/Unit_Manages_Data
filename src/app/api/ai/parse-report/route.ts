@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
-const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${GEMINI_API_KEY}`;
+const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
 
 interface FieldSchemaInput {
   name: string;
@@ -76,7 +76,7 @@ ${fieldsText}
 - หากพบตัวเลขจำนวนเงินหรือตัวเลขใด ๆ ให้แปลงเป็นตัวเลขอารบิกที่ไม่มีลูกน้ำคั่นในฟิลด์ตัวเลข
 - หากเป็นฟิลด์วันที่ ให้แปลงปี พ.ศ. หรือใด ๆ ให้อยู่ในฟอร์แมตสากล YYYY-MM-DD เสมอ เช่น 5 มกราคม 2569 -> 2026-01-05 หรือถ้าเป็นปี พ.ศ. 2569 ให้แปลงเป็น ค.ศ. 2026
 - หากฟิลด์ใดมีตัวเลือก (options) กำหนดไว้ ให้จับคู่เข้าหาตัวเลือกที่ใกล้เคียงที่สุดจากที่กำหนดให้ หากไม่ตรงเลยให้เลือกตัวเลือก "อื่นๆ" (หากมี) หรือปล่อยว่างไว้
-- หากไม่มีเบาะแสใด ๆ ในเรื่องเล่าสำหรับฟิลด์นั้น ๆ ให้เว้นว่างฟิลด์นั้นไว้ (ส่งกลับมาเป็นค่าว่าง "")`;
+- หากไม่มีเบาะแสใด ๆ ในเรื่องเล่าสำหรับฟิลด์นั้น ๆ ไม่ต้องใส่คีย์ของฟิลด์นั้นมาในผลลัพธ์ JSON (ให้ละเว้นคีย์นั้นไปเลย) เพื่อความรวดเร็วในการประมวลผล`;
 
     const requestPayload = {
       contents: [{
@@ -88,8 +88,7 @@ ${fieldsText}
         responseMimeType: 'application/json',
         responseSchema: {
           type: 'object',
-          properties: properties,
-          required: requiredFields
+          properties: properties
         }
       }
     };

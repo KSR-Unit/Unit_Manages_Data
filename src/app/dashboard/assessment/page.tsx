@@ -1,13 +1,14 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { 
   Award, Calendar, Settings, FileText, CheckCircle, AlertTriangle, 
-  Upload, Download, Loader2, Save, Send, ChevronDown, ChevronUp, UserCheck
+  Upload, Download, Loader2, Save, Send, ChevronDown, ChevronUp, UserCheck, Mic, MicOff, Sparkles
 } from 'lucide-react';
 import Swal from 'sweetalert2';
+import { useSpeechRecognition } from '@/hooks/useSpeechRecognition';
 
 interface AssessmentSettings {
   targetYear: string;
@@ -85,6 +86,159 @@ export default function AssessmentPage() {
   const [assessmentStatus, setAssessmentStatus] = useState<string>('Draft');
   const [expandedGroups, setExpandedGroups] = useState<Record<number, boolean>>({ 0: true });
   const [uploadingKey, setUploadingKey] = useState<string | null>(null);
+
+  // AI Voice & Text integration states
+  const [aiStoryText, setAiStoryText] = useState('');
+  const [aiParsing, setAiParsing] = useState(false);
+  const [highlightFields, setHighlightFields] = useState<Record<string, boolean>>({});
+
+  // Field Speech Recognition state
+  const [activeVoiceField, setActiveVoiceField] = useState<string | null>(null);
+  const activeVoiceFieldRef = useRef<string | null>(null);
+
+  // Hook for global dictation (Large mic button)
+  const {
+    isListening: isGlobalListening,
+    startListening: startGlobalListening,
+    stopListening: stopGlobalListening
+  } = useSpeechRecognition({
+    onResult: (text, isFinal) => {
+      if (isFinal) {
+        setAiStoryText(prev => (prev ? prev + ' ' + text : text));
+      }
+    }
+  });
+
+  // Hook for single field dictation (Small mic buttons)
+  const {
+    isListening: isFieldListening,
+    startListening: startFieldListening,
+    stopListening: stopFieldListening
+  } = useSpeechRecognition({
+    continuous: true,
+    interimResults: false,
+    onResult: (text, isFinal) => {
+      const currentField = activeVoiceFieldRef.current;
+      if (currentField && isFinal) {
+        setCriteriaData((prev: any) => {
+          const currentItem = prev[currentField] || { score: 1, desc: '', file_url: '' };
+          return {
+            ...prev,
+            [currentField]: {
+              ...currentItem,
+              desc: (currentItem.desc ? currentItem.desc + ' ' : '') + text
+            }
+          };
+        });
+      }
+    },
+    onEnd: () => {
+      setActiveVoiceField(null);
+      activeVoiceFieldRef.current = null;
+    }
+  });
+
+  const toggleFieldVoice = (fieldName: string) => {
+    if (activeVoiceFieldRef.current === fieldName) {
+      stopFieldListening();
+    } else {
+      if (activeVoiceFieldRef.current) {
+        stopFieldListening();
+      }
+      activeVoiceFieldRef.current = fieldName;
+      setActiveVoiceField(fieldName);
+      startFieldListening();
+    }
+  };
+
+  const handleAIParsing = async () => {
+    if (!aiStoryText || !aiStoryText.trim()) {
+      Swal.fire('เตือน', 'กรุณากรอกหรือพูดเล่ารายละเอียดก่อนกดประมวลผล', 'warning');
+      return;
+    }
+
+    setAiParsing(true);
+    try {
+      const fieldsSchema: any[] = [];
+      CRITERIA_GROUPS.forEach(group => {
+        group.items.forEach(item => {
+          fieldsSchema.push({
+            name: `${item.key}_score`,
+            label: `ระดับคะแนนสำหรับ ${item.label} (เลข 1-5)`,
+            type: 'number'
+          });
+          fieldsSchema.push({
+            name: `${item.key}_desc`,
+            label: `สรุปผลงาน/อธิบายวิธีการดำเนินงานสำหรับ ${item.label}`,
+            type: 'text'
+          });
+        });
+      });
+
+      const res = await fetch('/api/ai/parse-report', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          story: aiStoryText,
+          fieldsSchema: fieldsSchema
+        })
+      });
+
+      const result = await res.json();
+
+      if (!res.ok) {
+        throw new Error(result.error || 'เกิดข้อผิดพลาดในการประมวลผลของ AI');
+      }
+
+      const parsedData = result.data;
+      if (parsedData) {
+        const newCriteriaData = { ...criteriaData };
+        const fieldsFilled: Record<string, boolean> = {};
+
+        CRITERIA_GROUPS.forEach(group => {
+          group.items.forEach(item => {
+            const key = item.key;
+            const scoreVal = parsedData[`${key}_score`];
+            const descVal = parsedData[`${key}_desc`];
+
+            if (scoreVal !== undefined || descVal !== undefined) {
+              const currentItem = newCriteriaData[key] || { score: 1, desc: '', file_url: '' };
+              newCriteriaData[key] = {
+                ...currentItem,
+                score: scoreVal !== undefined ? Number(scoreVal) : currentItem.score,
+                desc: descVal !== undefined ? String(descVal) : currentItem.desc
+              };
+              fieldsFilled[key] = true;
+            }
+          });
+        });
+
+        setCriteriaData(newCriteriaData);
+        setHighlightFields(fieldsFilled);
+        setAiStoryText('');
+
+        Swal.fire({
+          icon: 'success',
+          title: 'ถอดข้อมูลลงฟอร์มสำเร็จ',
+          text: 'กรุณาตรวจสอบความถูกต้องและแก้ไขจุดที่ไฮไลท์หากจำเป็น',
+          timer: 2000,
+          showConfirmButton: false
+        });
+
+        setTimeout(() => {
+          setHighlightFields({});
+        }, 6000);
+      }
+
+    } catch (err: any) {
+      console.error(err);
+      Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
+    } finally {
+      setAiParsing(false);
+    }
+  };
 
   // Admin Config State
   const [userOptions, setUserOptions] = useState<any[]>([]);
@@ -558,6 +712,83 @@ export default function AssessmentPage() {
                   </div>
                 </div>
 
+                {/* AI Auto-fill helper box */}
+                {assessmentStatus !== 'Submitted' && (
+                  <div className="bg-gradient-to-br from-slate-900 to-indigo-950/40 border border-indigo-500/20 rounded-2xl p-4 space-y-3 relative overflow-hidden shadow-lg shadow-indigo-950/5">
+                    <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/5 rounded-full blur-xl pointer-events-none" />
+                    
+                    <div className="flex items-center justify-between border-b border-slate-800/60 pb-2">
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="h-4 w-4 text-indigo-400 animate-pulse" />
+                        <span className="font-semibold text-slate-200 text-xs">ผู้ช่วยประเมินและกรอกฟอร์มตนเองด้วย AI</span>
+                      </div>
+                      <span className="text-[9px] text-indigo-400 font-medium px-2 py-0.5 rounded bg-indigo-500/10 border border-indigo-500/10">
+                        Gemini 1.5 Flash
+                      </span>
+                    </div>
+
+                    <div className="space-y-3">
+                      <p className="text-[10px] text-slate-400 leading-4">
+                        กดปุ่มไมค์ขนาดใหญ่เพื่อเริ่มพูดรายงานสรุปผลงานทั้งหมดในรอบปีนี้ (อ่านสคริปต์ เช่น "หมวด 1 ข้อ 1.1 เราจัดทำแผนประจำปีสมบูรณ์ในระดับ 4 หมวด 2 ข้อ 2.1 ดำเนินกิจกรรมประชาสัมพันธ์ ได้ระดับ 3...") AI จะประเมินและกรอกเกรดพร้อมคำสรุปผลงานให้อัตโนมัติทุกข้อ
+                      </p>
+
+                      <div className="flex flex-col items-center justify-center p-4 bg-slate-950/40 rounded-xl border border-slate-800/80 space-y-2 relative overflow-hidden">
+                        {isGlobalListening ? (
+                          <button
+                            type="button"
+                            onClick={stopGlobalListening}
+                            className="w-12 h-12 bg-rose-500 hover:bg-rose-600 text-white rounded-full flex items-center justify-center cursor-pointer transition-all shadow-lg shadow-rose-500/30 relative"
+                            title="หยุดบันทึกเสียง"
+                          >
+                            <span className="absolute inset-0 rounded-full bg-rose-500/30 animate-ping" />
+                            <Mic className="h-5.5 w-5.5 animate-pulse" />
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={startGlobalListening}
+                            className="w-12 h-12 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full flex items-center justify-center cursor-pointer transition-all shadow-lg shadow-indigo-600/30 hover:scale-105"
+                            title="เริ่มพูดบรรยายรายละเอียดการประเมิน"
+                          >
+                            <Mic className="h-5.5 w-5.5" />
+                          </button>
+                        )}
+                        
+                        <span className="text-[9px] font-semibold text-slate-400">
+                          {isGlobalListening ? "🔴 กำลังฟังเสียงพูดของคุณ..." : "🎤 กดเพื่อพูดรายงานผลการประเมินทั้งหมด"}
+                        </span>
+
+                        <textarea
+                          rows={2}
+                          placeholder="คำบรรยายสรุปผลงานทั้งหมดของคุณจะปรากฏตรงนี้ คุณสามารถพูดต่อหรือแก้ไขเพิ่มเติมด้วยคีย์บอร์ดได้..."
+                          value={aiStoryText}
+                          onChange={(e) => setAiStoryText(e.target.value)}
+                          className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-[10px] text-slate-200 placeholder-slate-600 focus:outline-none focus:border-indigo-500 transition-all resize-none min-h-[50px] mt-1"
+                        />
+                      </div>
+
+                      <button
+                        type="button"
+                        disabled={aiParsing || !aiStoryText.trim()}
+                        onClick={handleAIParsing}
+                        className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-30 disabled:hover:bg-indigo-600 text-white font-semibold py-2 px-3 rounded-xl flex items-center justify-center gap-1.5 cursor-pointer shadow-lg shadow-indigo-600/10 transition-all text-[11px]"
+                      >
+                        {aiParsing ? (
+                          <>
+                            <Loader2 className="animate-spin h-3.5 w-3.5" />
+                            <span>AI กำลังวิเคราะห์แยกหมวดผลประเมินตนเอง...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="h-3.5 w-3.5 text-indigo-200" />
+                            <span>สั่ง AI แยกแยะและกรอกคะแนน+สรุปผลงานทุกข้อ</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {/* Criteria Groups */}
                 <div className="space-y-4">
                   {CRITERIA_GROUPS.map((group, groupIdx) => {
@@ -607,14 +838,36 @@ export default function AssessmentPage() {
 
                                     <div className="md:col-span-3 space-y-1">
                                       <label className="text-[10px] text-slate-500 font-medium">สรุปผลงาน/อธิบายวิธีการดำเนินงาน</label>
-                                      <input
-                                        disabled={assessmentStatus === 'Submitted'}
-                                        type="text"
-                                        placeholder="ระบุข้อความอธิบายการดำเนินงานคร่าวๆ ประกอบระดับคะแนน"
-                                        value={value.desc}
-                                        onChange={(e) => handleDescChange(key, e.target.value)}
-                                        className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-white placeholder-slate-700 focus:outline-none focus:border-indigo-500 text-xs"
-                                      />
+                                      <div className="relative flex items-center">
+                                        <input
+                                          disabled={assessmentStatus === 'Submitted'}
+                                          type="text"
+                                          placeholder="ระบุข้อความอธิบายการดำเนินงานคร่าวๆ ประกอบระดับคะแนน"
+                                          value={value.desc}
+                                          onChange={(e) => handleDescChange(key, e.target.value)}
+                                          className={`w-full bg-slate-950 border rounded-xl py-2 px-3 pr-9 text-white placeholder-slate-700 focus:outline-none focus:border-indigo-500 text-xs transition-all ${
+                                            highlightFields[key]
+                                              ? 'border-indigo-500/80 bg-indigo-500/5 ring-1 ring-indigo-500/30 animate-pulse'
+                                              : activeVoiceField === key
+                                                ? 'border-rose-500 bg-rose-500/5 ring-1 ring-rose-500/30'
+                                                : 'border-slate-800'
+                                          }`}
+                                        />
+                                        {assessmentStatus !== 'Submitted' && (
+                                          <button
+                                            type="button"
+                                            onClick={() => toggleFieldVoice(key)}
+                                            className={`absolute right-2.5 p-1 rounded-md transition-all cursor-pointer ${
+                                              activeVoiceField === key
+                                                ? 'text-rose-400 bg-rose-500/10 animate-pulse'
+                                                : 'text-slate-500 hover:text-slate-300'
+                                            }`}
+                                            title="พูดเพื่อสรุปผลงาน"
+                                          >
+                                            {activeVoiceField === key ? <MicOff className="h-3.5 w-3.5" /> : <Mic className="h-3.5 w-3.5" />}
+                                          </button>
+                                        )}
+                                      </div>
                                     </div>
                                   </div>
 
