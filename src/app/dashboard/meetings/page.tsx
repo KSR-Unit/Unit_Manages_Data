@@ -5,7 +5,7 @@ import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { 
   Plus, Edit, Trash2, Search, ArrowLeft, Mic, MicOff, Printer, 
-  QrCode, FileText, CheckCircle, AlertTriangle, Users, Loader2, Save, X, RefreshCw, Sparkles
+  QrCode, FileText, CheckCircle, AlertTriangle, Users, Loader2, Save, X, RefreshCw, Sparkles, Download
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { useSpeechRecognition } from '@/hooks/useSpeechRecognition';
@@ -357,6 +357,162 @@ export default function MeetingsPage() {
     window.print();
   };
 
+  const getInvitationHtml = () => {
+    return `
+      <div class="meta">
+        เลขที่หนังสือ: ศก.ปช./${editingId ? editingId.substring(0, 5) : 'XXXX'}
+      </div>
+      <div class="title">
+        หนังสือเชิญประชุมคณะทำงานผู้ไกล่เกลี่ยข้อพิพาท<br/>
+        เรื่อง: ขอเชิญเข้าร่วมการประชุม
+      </div>
+      <div class="content">
+        <p><strong>เรียน:</strong> คณะทำงานและผู้ประสานงานศูนย์ไกล่เกลี่ยประจำพื้นที่</p>
+        <p class="indent">${formData.invitation_text || '...'}</p>
+        <p class="indent">
+          ทั้งนี้ กำหนดจัดประชุมในวันที่ <strong>${formData.meeting_date ? new Date(formData.meeting_date).toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' }) : '...'}</strong> ณ สถานที่ <strong>${formData.location || '...'}</strong>
+        </p>
+        <p class="indent">จึงเรียนมาเพื่อทราบและขอเรียนเชิญเข้าร่วมการประชุมโดยพร้อมเพรียงกัน</p>
+      </div>
+      <div class="signatures">
+        <p>ขอแสดงความนับถือ</p>
+        <p style="margin-top: 40px;">(ลงชื่อ)....................................................</p>
+        <p><strong>(${formData.reporter_name || 'ผู้มีอำนาจลงนาม'})</strong></p>
+        <p style="font-size: 12px; color: #666;">ตำแหน่ง: ${formData.reporter_position || 'ประธานคณะทำงาน'}</p>
+      </div>
+    `;
+  };
+
+  const getAgendaHtml = () => {
+    return `
+      <div class="meta">
+        วันที่จัดประชุม: ${formData.meeting_date ? new Date(formData.meeting_date).toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' }) : '...'}
+      </div>
+      <div class="title">
+        รายงานการประชุมคณะทำงานผู้ไกล่เกลี่ยข้อพิพาท<br/>
+        ประจำปีงบประมาณ ${formData.meeting_date ? new Date(formData.meeting_date).getFullYear() + 543 : 'XXXX'}
+      </div>
+      <div class="content">
+        <p><strong>สถานที่ประชุม:</strong> ${formData.location || '...'}</p>
+        <p><strong>บันทึกโดย:</strong> ${formData.reporter_name || 'ผู้บันทึกรายงาน'}</p>
+        
+        <h3 style="border-bottom: 1px solid #ccc; padding-bottom: 5px; margin-top: 30px;">ระเบียบวาระการประชุม</h3>
+        
+        <div class="agenda-item">
+          <div class="agenda-title">วาระที่ 1: เรื่องแจ้งให้ที่ประชุมทราบ</div>
+          <div class="agenda-body" style="white-space: pre-wrap;">${formData.agenda_1 || 'ไม่มีข้อมูลบันทึกในวาระนี้'}</div>
+        </div>
+        
+        <div class="agenda-item" style="margin-top: 20px;">
+          <div class="agenda-title">วาระที่ 2: รับรองรายงานการประชุมครั้งก่อน</div>
+          <div class="agenda-body" style="white-space: pre-wrap;">${formData.agenda_2 || 'ไม่มีข้อมูลบันทึกในวาระนี้'}</div>
+        </div>
+        
+        <div class="agenda-item" style="margin-top: 20px;">
+          <div class="agenda-title">วาระที่ 3: เรื่องเสนอเพื่อทราบ</div>
+          <div class="agenda-body" style="white-space: pre-wrap;">${formData.agenda_3 || 'ไม่มีข้อมูลบันทึกในวาระนี้'}</div>
+        </div>
+        
+        <div class="agenda-item" style="margin-top: 20px;">
+          <div class="agenda-title">วาระที่ 4: เรื่องเสนอเพื่อพิจารณา</div>
+          <div class="agenda-body" style="white-space: pre-wrap;">${formData.agenda_4 || 'ไม่มีข้อมูลบันทึกในวาระนี้'}</div>
+        </div>
+        
+        <div class="agenda-item" style="margin-top: 20px;">
+          <div class="agenda-title">วาระที่ 5: เรื่องอื่นๆ</div>
+          <div class="agenda-body" style="white-space: pre-wrap;">${formData.agenda_5 || 'ไม่มีข้อมูลบันทึกในวาระนี้'}</div>
+        </div>
+      </div>
+      
+      <div class="signatures">
+        <p>ลงนามรับรองรายงานการประชุม</p>
+        <p style="margin-top: 40px;">(ลงชื่อ)....................................................</p>
+        <p><strong>(${formData.reporter_name || 'ผู้บันทึก'})</strong></p>
+        <p style="font-size: 12px; color: #666;">ตำแหน่ง: ${formData.reporter_position || 'ประธานคณะทำงาน'}</p>
+      </div>
+    `;
+  };
+
+  const handlePrintPdf = (type: 'invitation' | 'agenda') => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    const content = type === 'invitation' ? getInvitationHtml() : getAgendaHtml();
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>\${type === 'invitation' ? 'หนังสือเชิญประชุม' : 'รายงานการประชุม'}</title>
+          <style>
+            @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;800&display=swap');
+            body {
+              font-family: 'Sarabun', sans-serif;
+              padding: 40px;
+              color: #333;
+              line-height: 1.6;
+              font-size: 14px;
+            }
+            .header {
+              text-align: center;
+              font-weight: bold;
+              font-size: 18px;
+              margin-bottom: 20px;
+            }
+            .meta {
+              text-align: right;
+              color: #666;
+              margin-bottom: 30px;
+            }
+            .title {
+              text-align: center;
+              font-weight: bold;
+              font-size: 16px;
+              margin-bottom: 30px;
+            }
+            .content {
+              margin-bottom: 40px;
+              text-align: justify;
+            }
+            .indent {
+              text-indent: 40px;
+            }
+            .signatures {
+              margin-top: 60px;
+              text-align: right;
+              width: 300px;
+              margin-left: auto;
+            }
+            .agenda-item {
+              margin-bottom: 20px;
+            }
+            .agenda-title {
+              font-weight: bold;
+              margin-bottom: 5px;
+            }
+            .agenda-body {
+              margin-left: 20px;
+              text-indent: 0;
+            }
+            @media print {
+              body { padding: 0; }
+              button { display: none; }
+            }
+          </style>
+        </head>
+        <body>
+          \${content}
+          <script>
+            window.onload = function() {
+              window.print();
+              setTimeout(function() { window.close(); }, 500);
+            }
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
   // QR link construction
   const getRegistrationLink = () => {
     if (typeof window === 'undefined' || !editingId) return '';
@@ -536,21 +692,7 @@ export default function MeetingsPage() {
                 <div className="bg-gradient-to-br from-slate-900 to-indigo-950/40 border border-indigo-500/20 rounded-2xl p-4 space-y-3 relative overflow-hidden shadow-lg shadow-indigo-950/5">
                   <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/5 rounded-full blur-xl pointer-events-none" />
                   
-                  <div className="flex items-center justify-between border-b border-slate-800/60 pb-2">
-                    <div className="flex items-center gap-2">
-                      <Sparkles className="h-4 w-4 text-indigo-400 animate-pulse" />
-                      <span className="font-semibold text-slate-200 text-xs">ผู้ช่วยกรอกข้อมูลอัจฉริยะด้วย AI</span>
-                    </div>
-                    <span className="text-[9px] text-indigo-400 font-medium px-2 py-0.5 rounded bg-indigo-500/10 border border-indigo-500/10">
-                      Gemini 1.5 Flash
-                    </span>
-                  </div>
-
                   <div className="space-y-3">
-                    <p className="text-[10px] text-slate-400 leading-4">
-                      กดปุ่มไมค์ขนาดใหญ่เพื่อเริ่มพูดเล่ารายละเอียดจัดประชุมทั้งหมด (สคริปต์) เช่น ชื่อการประชุม วันที่ สถานที่ ผู้บันทึก แล้วให้ AI ดึงลงช่องให้ทันที
-                    </p>
-
                     <div className="flex flex-col items-center justify-center p-4 bg-slate-950/40 rounded-xl border border-slate-800/80 space-y-2 relative overflow-hidden">
                       {isGlobalListening ? (
                         <button
@@ -578,11 +720,11 @@ export default function MeetingsPage() {
                       </span>
 
                       <textarea
-                        rows={2}
+                        rows={5}
                         placeholder="ข้อความที่ถอดความได้ จะปรากฏตรงนี้ และคุณสามารถพิมพ์แก้ไขเพิ่มเติมได้..."
                         value={aiStoryText}
                         onChange={(e) => setAiStoryText(e.target.value)}
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-[10px] text-slate-200 placeholder-slate-600 focus:outline-none focus:border-indigo-500 transition-all resize-none min-h-[50px] mt-1"
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-[10px] text-slate-200 placeholder-slate-600 focus:outline-none focus:border-indigo-500 transition-all resize-y min-h-[120px] mt-1"
                       />
                     </div>
 
@@ -908,7 +1050,7 @@ export default function MeetingsPage() {
                     <p><span className="font-semibold text-slate-900">เรียน:</span> คณะทำงานและผู้ประสานงานศูนย์ไกล่เกลี่ยประจำพื้นที่</p>
                     <p className="indent-8 text-justify">{formData.invitation_text || '...'}</p>
                     <p className="indent-8 text-justify">
-                      ทั้งนี้ กำหนดจัดประชุมในวันที่ <span className="font-semibold text-slate-900">{new Date(formData.meeting_date).toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' })}</span> ณ สถานที่ <span className="font-semibold text-slate-900">{formData.location || '...'}</span> 
+                      ทั้งนี้ กำหนดจัดประชุมในวันที่ <span className="font-semibold text-slate-900">{formData.meeting_date ? new Date(formData.meeting_date).toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' }) : '...'}</span> ณ สถานที่ <span className="font-semibold text-slate-900">{formData.location || '...'}</span> 
                     </p>
                     <p className="indent-8">จึงเรียนมาเพื่อทราบและขอเรียนเชิญเข้าร่วมการประชุมโดยพร้อมเพรียงกัน</p>
                   </div>
@@ -921,8 +1063,16 @@ export default function MeetingsPage() {
                   </div>
                 </div>
 
-                <div className="mt-8 pt-4 border-t flex justify-end">
-                  <span className="text-[10px] text-slate-400">กรอกรายละเอียดแท็บที่ 1 ครบถ้วนแล้ว ให้ขยับไปแท็บที่ 2 เพื่อจดบันทึกวาระการประชุม</span>
+                <div className="mt-8 pt-4 border-t flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <span className="text-[9px] text-slate-400">กรอกรายละเอียดครบถ้วนแล้ว ให้ขยับไปแท็บที่ 2 เพื่อบันทึกวาระการประชุม</span>
+                  <button
+                    type="button"
+                    onClick={() => handlePrintPdf('invitation')}
+                    className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold text-[10px] transition-all cursor-pointer shadow-lg shadow-indigo-600/10 shrink-0"
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                    <span>ดาวน์โหลด PDF</span>
+                  </button>
                 </div>
               </div>
             </div>
@@ -930,57 +1080,127 @@ export default function MeetingsPage() {
 
           {/* Tab Content 2: Minutes with Speech-to-Text */}
           {activeTab === 'agendas' && (
-            <div className="bg-slate-900 border border-slate-800/80 p-6 rounded-2xl space-y-6 text-xs text-slate-300">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-4">
-                <div>
-                  <h3 className="text-sm font-semibold text-white">จดบันทึกระเบียบวาระมติที่ประชุม (5 วาระมาตรฐาน)</h3>
-                  <p className="text-[10px] text-slate-500 font-light mt-0.5">กดปุ่มไมโครโฟนเพื่อพูดภาษาไทยในการถอดความแทนการคีย์พิมพ์</p>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              {/* Left Column: Form Fields */}
+              <div className="lg:col-span-2 bg-slate-900 border border-slate-800/80 p-6 rounded-2xl space-y-6 text-xs text-slate-300">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+                  <div>
+                    <h3 className="text-sm font-semibold text-white">จดบันทึกระเบียบวาระมติที่ประชุม (5 วาระมาตรฐาน)</h3>
+                    <p className="text-[10px] text-slate-500 font-light mt-0.5">กดปุ่มไมโครโฟนเพื่อพูดภาษาไทยในการถอดความแทนการคีย์พิมพ์</p>
+                  </div>
+                </div>
+
+                {/* 5 Agendas list */}
+                <div className="space-y-5">
+                  {[
+                    { key: 'agenda_1', label: 'วาระที่ 1: เรื่องแจ้งให้ที่ประชุมทราบ', placeholder: 'ประธานแจ้งนโยบาย รายงานข่าวประชาสัมพันธ์หน่วยงาน...' },
+                    { key: 'agenda_2', label: 'วาระที่ 2: รับรองรายงานการประชุมครั้งก่อน', placeholder: 'การรับรองสรุปเรื่องร้องเรียนหรือผลคดีในการประชุมรอบที่แล้ว...' },
+                    { key: 'agenda_3', label: 'วาระที่ 3: เรื่องเสนอเพื่อทราบ', placeholder: 'รายงานจำนวนคดีไกล่เกลี่ยที่สำเร็จ งบที่ใช้สะสม...' },
+                    { key: 'agenda_4', label: 'วาระที่ 4: เรื่องเสนอเพื่อพิจารณา', placeholder: 'การโหวตข้อพิพาท ประเมินความถูกต้อง หรือคัดกรองจัดระดับศูนย์...' },
+                    { key: 'agenda_5', label: 'วาระที่ 5: เรื่องอื่นๆ', placeholder: 'ข้อสงสัยเพิ่มเติม การนัดประชุมครั้งถัดไป...' },
+                  ].map(ag => {
+                    const listening = activeVoiceField === ag.key;
+                    return (
+                      <div key={ag.key} className="space-y-2 border border-slate-800/60 p-4 rounded-xl bg-slate-950/20">
+                        <div className="flex items-center justify-between">
+                          <label className="text-xs font-semibold text-slate-200">{ag.label}</label>
+                          
+                          <button
+                            type="button"
+                            onClick={() => toggleFieldVoice(ag.key)}
+                            className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border text-[10px] font-bold cursor-pointer transition-all ${
+                              listening 
+                                ? 'bg-rose-500/20 border-rose-500 text-rose-400 animate-pulse' 
+                                : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+                            }`}
+                          >
+                            {listening ? <MicOff className="h-3.5 w-3.5" /> : <Mic className="h-3.5 w-3.5" />}
+                            <span>{listening ? 'กำลังถอดเสียง (กดเพื่อหยุด)' : 'พูดเพื่อถอดความ'}</span>
+                          </button>
+                        </div>
+
+                        <textarea
+                          rows={3}
+                          placeholder={ag.placeholder}
+                          value={formData[ag.key] || ''}
+                          onChange={(e) => setFormData((p: any) => ({ ...p, [ag.key]: e.target.value }))}
+                          className={`w-full bg-slate-950 border rounded-xl py-2 px-3 text-white focus:outline-none focus:border-indigo-500 leading-5 transition-all ${
+                            listening
+                              ? 'border-rose-500 bg-rose-500/5 ring-1 ring-rose-500/30'
+                              : 'border-slate-800'
+                          }`}
+                        />
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
-              {/* 5 Agendas list */}
-              <div className="space-y-5">
-                {[
-                  { key: 'agenda_1', label: 'วาระที่ 1: เรื่องแจ้งให้ที่ประชุมทราบ', placeholder: 'ประธานแจ้งนโยบาย รายงานข่าวประชาสัมพันธ์หน่วยงาน...' },
-                  { key: 'agenda_2', label: 'วาระที่ 2: รับรองรายงานการประชุมครั้งก่อน', placeholder: 'การรับรองสรุปเรื่องร้องเรียนหรือผลคดีในการประชุมรอบที่แล้ว...' },
-                  { key: 'agenda_3', label: 'วาระที่ 3: เรื่องเสนอเพื่อทราบ', placeholder: 'รายงานจำนวนคดีไกล่เกลี่ยที่สำเร็จ งบที่ใช้สะสม...' },
-                  { key: 'agenda_4', label: 'วาระที่ 4: เรื่องเสนอเพื่อพิจารณา', placeholder: 'การโหวตข้อพิพาท ประเมินความถูกต้อง หรือคัดกรองจัดระดับศูนย์...' },
-                  { key: 'agenda_5', label: 'วาระที่ 5: เรื่องอื่นๆ', placeholder: 'ข้อสงสัยเพิ่มเติม การนัดประชุมครั้งถัดไป...' },
-                ].map(ag => {
-                  const listening = activeVoiceField === ag.key;
-                  return (
-                    <div key={ag.key} className="space-y-2 border border-slate-800/60 p-4 rounded-xl bg-slate-950/20">
-                      <div className="flex items-center justify-between">
-                        <label className="text-xs font-semibold text-slate-200">{ag.label}</label>
-                        
-                        <button
-                          type="button"
-                          onClick={() => toggleFieldVoice(ag.key)}
-                          className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border text-[10px] font-bold cursor-pointer transition-all ${
-                            listening 
-                              ? 'bg-rose-500/20 border-rose-500 text-rose-400 animate-pulse' 
-                              : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
-                          }`}
-                        >
-                          {listening ? <MicOff className="h-3.5 w-3.5" /> : <Mic className="h-3.5 w-3.5" />}
-                          <span>{listening ? 'กำลังถอดเสียง (กดเพื่อหยุด)' : 'พูดเพื่อถอดความ'}</span>
-                        </button>
-                      </div>
+              {/* Right Column: Styled Minutes/Agenda Preview */}
+              <div className="lg:col-span-1 bg-white border border-slate-200 p-6 rounded-2xl text-slate-800 shadow-md flex flex-col justify-between h-fit">
+                <div className="space-y-6 text-[10px] font-sans">
+                  <div className="text-center font-bold text-xs border-b pb-3 text-slate-900">
+                    รายงานการประชุม (พรีวิว)
+                  </div>
+                  
+                  <div className="text-right text-slate-500">
+                    วันที่จัดประชุม: {formData.meeting_date ? new Date(formData.meeting_date).toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' }) : '...'}
+                  </div>
 
-                      <textarea
-                        rows={3}
-                        placeholder={ag.placeholder}
-                        value={formData[ag.key] || ''}
-                        onChange={(e) => setFormData((p: any) => ({ ...p, [ag.key]: e.target.value }))}
-                        className={`w-full bg-slate-950 border rounded-xl py-2 px-3 text-white focus:outline-none focus:border-indigo-500 leading-5 transition-all ${
-                          listening
-                            ? 'border-rose-500 bg-rose-500/5 ring-1 ring-rose-500/30'
-                            : 'border-slate-800'
-                        }`}
-                      />
+                  <div className="text-center font-semibold text-slate-900 leading-5">
+                    รายงานการประชุมคณะทำงานผู้ไกล่เกลี่ยข้อพิพาท<br/>
+                    ประจำปีงบประมาณ {formData.meeting_date ? new Date(formData.meeting_date).getFullYear() + 543 : 'XXXX'}
+                  </div>
+
+                  <div className="space-y-4 leading-relaxed text-slate-700">
+                    <p><span className="font-semibold text-slate-900">สถานที่ประชุม:</span> {formData.location || '...'}</p>
+                    <p><span className="font-semibold text-slate-900">บันทึกโดย:</span> {formData.reporter_name || 'ผู้บันทึกรายงาน'}</p>
+                    
+                    <div className="border-t border-slate-100 my-2 pt-2" />
+                    
+                    <div className="space-y-3">
+                      <div>
+                        <span className="font-semibold text-slate-900 block">วาระที่ 1: เรื่องแจ้งให้ที่ประชุมทราบ</span>
+                        <p className="pl-3 text-justify text-slate-600 whitespace-pre-line">{formData.agenda_1 || '(ไม่มีบันทึกข้อมูล)'}</p>
+                      </div>
+                      <div>
+                        <span className="font-semibold text-slate-900 block">วาระที่ 2: รับรองรายงานการประชุมครั้งก่อน</span>
+                        <p className="pl-3 text-justify text-slate-600 whitespace-pre-line">{formData.agenda_2 || '(ไม่มีบันทึกข้อมูล)'}</p>
+                      </div>
+                      <div>
+                        <span className="font-semibold text-slate-900 block">วาระที่ 3: เรื่องเสนอเพื่อทราบ</span>
+                        <p className="pl-3 text-justify text-slate-600 whitespace-pre-line">{formData.agenda_3 || '(ไม่มีบันทึกข้อมูล)'}</p>
+                      </div>
+                      <div>
+                        <span className="font-semibold text-slate-900 block">วาระที่ 4: เรื่องเสนอเพื่อพิจารณา</span>
+                        <p className="pl-3 text-justify text-slate-600 whitespace-pre-line">{formData.agenda_4 || '(ไม่มีบันทึกข้อมูล)'}</p>
+                      </div>
+                      <div>
+                        <span className="font-semibold text-slate-900 block">วาระที่ 5: เรื่องอื่นๆ</span>
+                        <p className="pl-3 text-justify text-slate-600 whitespace-pre-line">{formData.agenda_5 || '(ไม่มีบันทึกข้อมูล)'}</p>
+                      </div>
                     </div>
-                  );
-                })}
+                  </div>
+
+                  <div className="text-right pt-6 space-y-1 border-t border-slate-100 mt-4">
+                    <p>ลงนามรับรองรายงานการประชุม</p>
+                    <p className="pt-4 text-slate-500">(ลงชื่อ)....................................................</p>
+                    <p className="text-slate-900 font-semibold">({formData.reporter_name || 'ผู้บันทึก'})</p>
+                    <p className="text-slate-500 text-[9px]">ตำแหน่ง: {formData.reporter_position || 'ประธานคณะทำงาน'}</p>
+                  </div>
+                </div>
+
+                <div className="mt-8 pt-4 border-t flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <span className="text-[9px] text-slate-400">กรอกวาระครบถ้วนแล้ว ให้ขยับไปแท็บที่ 3 เพื่อดึง QR Code ลงชื่อผู้เข้าร่วมประชุม</span>
+                  <button
+                    type="button"
+                    onClick={() => handlePrintPdf('agenda')}
+                    className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold text-[10px] transition-all cursor-pointer shadow-lg shadow-indigo-600/10 shrink-0"
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                    <span>ดาวน์โหลด PDF</span>
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -1073,7 +1293,7 @@ export default function MeetingsPage() {
               <div className="bg-white border rounded-2xl p-8 max-w-2xl mx-auto shadow-md text-slate-800 text-[10px] font-sans leading-relaxed print-area">
                 <div className="text-center font-bold text-xs uppercase text-black leading-6">
                   รายงานการประชุมคณะทำงานและผู้ไกล่เกลี่ยข้อพิพาทประจำศูนย์<br/>
-                  ครั้งที่ {editingId ? editingId.substring(0, 4) : 'X'}/{new Date(formData.meeting_date).getFullYear() + 543}<br/>
+                  ครั้งที่ {editingId ? editingId.substring(0, 4) : 'X'}/{formData.meeting_date ? new Date(formData.meeting_date).getFullYear() + 543 : 'XXXX'}<br/>
                   ณ สถานที่ {formData.location}
                 </div>
 
@@ -1081,7 +1301,7 @@ export default function MeetingsPage() {
 
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
-                    <div><span className="font-semibold text-black">วันทีประชุม:</span> {new Date(formData.meeting_date).toLocaleDateString('th-TH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</div>
+                    <div><span className="font-semibold text-black">วันทีประชุม:</span> {formData.meeting_date ? new Date(formData.meeting_date).toLocaleDateString('th-TH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : '...'}</div>
                     <div><span className="font-semibold text-black">ผู้ประสานงานการจัด:</span> {formData.source_info || '-'}</div>
                   </div>
 

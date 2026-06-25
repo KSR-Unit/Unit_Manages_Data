@@ -717,21 +717,7 @@ export default function AssessmentPage() {
                   <div className="bg-gradient-to-br from-slate-900 to-indigo-950/40 border border-indigo-500/20 rounded-2xl p-4 space-y-3 relative overflow-hidden shadow-lg shadow-indigo-950/5">
                     <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/5 rounded-full blur-xl pointer-events-none" />
                     
-                    <div className="flex items-center justify-between border-b border-slate-800/60 pb-2">
-                      <div className="flex items-center gap-2">
-                        <Sparkles className="h-4 w-4 text-indigo-400 animate-pulse" />
-                        <span className="font-semibold text-slate-200 text-xs">ผู้ช่วยประเมินและกรอกฟอร์มตนเองด้วย AI</span>
-                      </div>
-                      <span className="text-[9px] text-indigo-400 font-medium px-2 py-0.5 rounded bg-indigo-500/10 border border-indigo-500/10">
-                        Gemini 1.5 Flash
-                      </span>
-                    </div>
-
                     <div className="space-y-3">
-                      <p className="text-[10px] text-slate-400 leading-4">
-                        กดปุ่มไมค์ขนาดใหญ่เพื่อเริ่มพูดรายงานสรุปผลงานทั้งหมดในรอบปีนี้ (อ่านสคริปต์ เช่น "หมวด 1 ข้อ 1.1 เราจัดทำแผนประจำปีสมบูรณ์ในระดับ 4 หมวด 2 ข้อ 2.1 ดำเนินกิจกรรมประชาสัมพันธ์ ได้ระดับ 3...") AI จะประเมินและกรอกเกรดพร้อมคำสรุปผลงานให้อัตโนมัติทุกข้อ
-                      </p>
-
                       <div className="flex flex-col items-center justify-center p-4 bg-slate-950/40 rounded-xl border border-slate-800/80 space-y-2 relative overflow-hidden">
                         {isGlobalListening ? (
                           <button
@@ -759,11 +745,11 @@ export default function AssessmentPage() {
                         </span>
 
                         <textarea
-                          rows={2}
+                          rows={5}
                           placeholder="คำบรรยายสรุปผลงานทั้งหมดของคุณจะปรากฏตรงนี้ คุณสามารถพูดต่อหรือแก้ไขเพิ่มเติมด้วยคีย์บอร์ดได้..."
                           value={aiStoryText}
                           onChange={(e) => setAiStoryText(e.target.value)}
-                          className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-[10px] text-slate-200 placeholder-slate-600 focus:outline-none focus:border-indigo-500 transition-all resize-none min-h-[50px] mt-1"
+                          className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-[10px] text-slate-200 placeholder-slate-600 focus:outline-none focus:border-indigo-500 transition-all resize-y min-h-[120px] mt-1"
                         />
                       </div>
 

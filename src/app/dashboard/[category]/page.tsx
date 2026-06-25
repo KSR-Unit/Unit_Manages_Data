@@ -1087,7 +1087,7 @@ export default function CategoryPage({ params }: { params: Promise<{ category: s
                         </button>
                       )}
                       
-                      <span className="text-[9px] font-semibold text-slate-405">
+                      <span className="text-[9px] font-semibold text-slate-400">
                         {isListening ? "🔴 กำลังฟังเสียงพูดของคุณ..." : "🎤 กดเพื่อพูดเล่าเรื่อง (อ่านสคริป) ทั้งหมด"}
                       </span>
 
