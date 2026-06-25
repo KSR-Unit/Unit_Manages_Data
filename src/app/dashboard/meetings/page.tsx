@@ -196,6 +196,50 @@ export default function MeetingsPage() {
     }
   }, [editingId, activeTab]);
 
+  // Check for global mic pending data
+  useEffect(() => {
+    const pendingData = sessionStorage.getItem('ai_pending_autofill');
+    if (pendingData) {
+      try {
+        const { category, data } = JSON.parse(pendingData);
+        if (category === 'meetings') {
+          setView('form');
+          setEditingId(null);
+          setFormData((prev: any) => ({
+            ...prev,
+            ...data,
+            reporter_name: data.reporter_name || profile?.name || '',
+            reporter_phone: data.reporter_phone || profile?.phone || '',
+          }));
+
+          const highlights: Record<string, boolean> = {};
+          Object.keys(data).forEach(key => {
+            if (data[key] !== undefined && data[key] !== null && data[key] !== '') {
+              highlights[key] = true;
+            }
+          });
+          setHighlightFields(highlights);
+          setTimeout(() => {
+            setHighlightFields({});
+          }, 6000);
+
+          Swal.fire({
+            icon: 'success',
+            title: 'ดึงข้อมูล AI จากหน้าหลักสำเร็จ',
+            text: 'ระบบได้กรอกข้อมูลการประชุมที่ AI ดึงข้อมูลได้เรียบร้อยแล้ว กรุณาตรวจสอบข้อมูลที่ไฮไลต์และมติการประชุมก่อนบันทึก',
+            confirmButtonColor: '#4f46e5',
+            background: '#0f172a',
+            color: '#f8fafc'
+          });
+        }
+      } catch (err) {
+        console.error('Error parsing pending global mic data in meetings:', err);
+      } finally {
+        sessionStorage.removeItem('ai_pending_autofill');
+      }
+    }
+  }, [profile]);
+
   const fetchMeetings = async () => {
     setLoading(true);
     try {

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { 
@@ -9,9 +10,11 @@ import {
 } from 'recharts';
 import { 
   Calendar, FileText, Compass, BookOpen, Wallet, Shield, AlertTriangle, 
-  CheckCircle, Clock, Search, ChevronRight, Filter, TrendingUp, Info
+  CheckCircle, Clock, Search, ChevronRight, Filter, TrendingUp, Info,
+  Mic, MicOff, Sparkles, Loader2
 } from 'lucide-react';
 import Swal from 'sweetalert2';
+import { useSpeechRecognition } from '@/hooks/useSpeechRecognition';
 
 interface DashboardStats {
   counts: {
@@ -33,6 +36,7 @@ interface DashboardStats {
 
 export default function DashboardPage() {
   const { user, profile } = useAuth();
+  const router = useRouter();
   const [filterMonth, setFilterMonth] = useState<string>('');
   const [filterYear, setFilterYear] = useState<string>(String(new Date().getFullYear() + 543));
   const [stats, setStats] = useState<DashboardStats>({
@@ -49,6 +53,141 @@ export default function DashboardPage() {
     trackingDetails: null
   });
   const [loading, setLoading] = useState(true);
+
+  // AI Voice & Text integration states
+  const [aiStoryText, setAiStoryText] = useState('');
+  const [aiParsing, setAiParsing] = useState(false);
+
+  const { isListening, startListening, stopListening, isSupported } = useSpeechRecognition({
+    onResult: (text, isFinal) => {
+      if (isFinal) {
+        setAiStoryText(prev => prev ? prev + ' ' + text : text);
+      }
+    }
+  });
+
+  const handleGlobalAIParsing = async () => {
+    if (!aiStoryText || !aiStoryText.trim()) {
+      Swal.fire('คำเตือน', 'กรุณาระบุรายละเอียดข้อความเสียงหรือพิมพ์ข้อมูลก่อนกดประมวลผล', 'warning');
+      return;
+    }
+
+    setAiParsing(true);
+    try {
+      const res = await fetch('/api/ai/classify-and-parse', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ story: aiStoryText })
+      });
+
+      const result = await res.json();
+      if (!res.ok) {
+        throw new Error(result.error || 'เกิดข้อผิดพลาดในการประมวลผลข้อมูลด้วย AI');
+      }
+
+      const { category, categoryTitle, categoryPath, data } = result;
+
+      // Option B: Show verification dialog with sweetalert2
+      const dataKeys = Object.keys(data);
+      let summaryHtml = '<div class="text-left bg-slate-950 p-4 rounded-xl border border-slate-800 text-xs space-y-2 text-slate-300 font-sans overflow-y-auto max-h-60">';
+      
+      dataKeys.forEach(k => {
+        if (k === 'activities' && Array.isArray(data[k])) {
+          summaryHtml += `<p class="text-indigo-400 font-bold border-b border-slate-800 pb-1 mt-2">📌 รายการกิจกรรมย่อย (${data[k].length} รายการ):</p>`;
+          data[k].forEach((act: any, idx: number) => {
+            summaryHtml += `<div class="pl-2 border-l border-indigo-500/30 my-1">
+              <strong>${idx + 1}. ${act.name || '(ไม่มีชื่อ)'}</strong><br/>
+              - ช่วงเวลา: ${act.start_date || '?'} ถึง ${act.end_date || '?'}<br/>
+              ${act.budget ? `- งบประมาณ: ${parseFloat(act.budget).toLocaleString()} บาท<br/>` : ''}
+              ${act.owner ? `- ผู้รับผิดชอบ: ${act.owner}<br/>` : ''}
+            </div>`;
+          });
+        } else if (data[k] !== undefined && data[k] !== null && data[k] !== '') {
+          // Map technical field names to clean Thai labels for display
+          const keyLabels: Record<string, string> = {
+            title: 'ชื่อแผนงาน/โครงการ',
+            year: 'ปีงบประมาณ (พ.ศ.)',
+            project_description: 'รายละเอียดวัตถุประสงค์',
+            meeting_name: 'ชื่อการประชุม',
+            meeting_date: 'วันที่ประชุม',
+            location: 'สถานที่จัด',
+            summary: 'สรุปผล/รายงานผลงาน',
+            course_name: 'ชื่อหลักสูตรอบรม',
+            training_date: 'วันที่จัดอบรม',
+            unit_training: 'หน่วยงานผู้จัด',
+            project_name: 'ชื่อโครงการเบิกจ่าย',
+            approval_date: 'วันที่อนุมัติเบิกจ่าย',
+            budget_amount: 'จำนวนงบประมาณ (บาท)',
+            case_no: 'เลขคำร้อง',
+            start_date_mediation: 'วันที่รับคำร้อง',
+            case_type: 'ประเภทข้อพิพาท',
+            civil_dispute_type: 'ข้อพิพาททางแพ่ง',
+            criminal_dispute_type: 'ข้อพิพาททางอาญา',
+            value_in_dispute: 'ทุนทรัพย์ (บาท)',
+            case_final: 'ผลการไกล่เกลี่ย',
+            dispute_type: 'ประเภทข้อพิพาทกฎหมายอื่น',
+            details: 'รายละเอียดปัญหา',
+            action_type: 'การดำเนินการเบื้องต้น',
+            action_detail: 'รายละเอียดการปฏิบัติ',
+            month: 'รายงานรอบเดือน',
+            reporter_name: 'ชื่อผู้รายงาน/ผู้บันทึก',
+            reporter_phone: 'เบอร์ติดต่อผู้บันทึก',
+            source_info: 'ผู้ประสานงานหลัก',
+            source_contact: 'เบอร์โทรผู้ประสานงาน',
+          };
+          const displayKey = keyLabels[k] || k;
+          summaryHtml += `<p><strong>🔹 ${displayKey}:</strong> ${data[k]}</p>`;
+        }
+      });
+      summaryHtml += '</div>';
+
+      Swal.fire({
+        title: `🤖 AI ตรวจพบรายงาน "${categoryTitle}"`,
+        html: `
+          <div class="text-slate-300 text-xs font-light text-left mb-3">
+            วิเคราะห์คำพูดของคุณสำเร็จแล้ว ตรวจพบหมวดหมู่และคอลัมน์ต่อไปนี้:
+          </div>
+          ${summaryHtml}
+          <div class="text-slate-400 text-[10px] text-left mt-3">
+            *กดยืนยันเพื่อนำทางไปยังหน้าแบบฟอร์มและระบบจะกรอกข้อมูลนี้ลงช่องรับข้อมูลให้คุณโดยอัตโนมัติ
+          </div>
+        `,
+        icon: 'info',
+        showCancelButton: true,
+        confirmButtonText: 'ยืนยันและนำทางไปหน้าแบบฟอร์ม',
+        cancelButtonText: 'ยกเลิก',
+        confirmButtonColor: '#4f46e5',
+        cancelButtonColor: '#1e293b',
+        background: '#0f172a',
+        color: '#f8fafc',
+        customClass: {
+          popup: 'rounded-2xl border border-slate-800',
+          title: 'text-sm font-semibold text-white',
+          confirmButton: 'text-xs rounded-xl font-medium px-4 py-2.5',
+          cancelButton: 'text-xs rounded-xl font-medium px-4 py-2.5'
+        }
+      }).then((swalResult) => {
+        if (swalResult.isConfirmed) {
+          // Save in session storage and route
+          sessionStorage.setItem('ai_pending_autofill', JSON.stringify({ category, data }));
+          setAiStoryText('');
+          router.push(categoryPath);
+        }
+      });
+
+    } catch (err: any) {
+      console.error(err);
+      Swal.fire({
+        icon: 'error',
+        title: 'เกิดข้อผิดพลาด',
+        text: err.message || 'ไม่สามารถวิเคราะห์ข้อมูลได้',
+        background: '#0f172a',
+        color: '#f8fafc'
+      });
+    } finally {
+      setAiParsing(false);
+    }
+  };
 
   // Month options in Thai
   const thaiMonths = [
@@ -302,6 +441,120 @@ export default function DashboardPage() {
               <option key={y} value={y}>ปี พ.ศ. {y}</option>
             ))}
           </select>
+        </div>
+      </div>
+
+      {/* AI Voice Command Center (ไมโครโฟนกลาง) */}
+      <div className="bg-gradient-to-br from-indigo-950/40 via-slate-900/40 to-slate-900/40 border border-slate-800/60 p-6 rounded-2xl relative overflow-hidden shadow-xl">
+        <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+        
+        <div className="flex items-center gap-2 mb-4">
+          <div className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-400">
+            <Sparkles className="h-5 w-5 animate-pulse" />
+          </div>
+          <span className="text-sm font-semibold text-slate-200">ศูนย์กลางเสียงสั่งงานอัจฉริยะ (Global AI Voice Assistant)</span>
+        </div>
+
+        {/* Recording Container (Without headers/descriptions as requested) */}
+        <div className="relative rounded-xl border border-slate-800 bg-slate-950/80 p-4">
+          <textarea
+            value={aiStoryText}
+            onChange={(e) => setAiStoryText(e.target.value)}
+            placeholder="แตะไมค์แล้วเริ่มพูดเล่าเรื่องโครงการ แผนงาน หรือรายงานคดีไกล่เกลี่ยที่นี่... หรือจะพิมพ์บอกรายละเอียดโดยตรงก็ได้เช่นกัน..."
+            className="w-full bg-transparent border-0 text-slate-100 placeholder-slate-500 text-sm focus:ring-0 focus:outline-none resize-y min-h-[120px] font-light leading-relaxed"
+            rows={5}
+          />
+          
+          <div className="flex items-center justify-between border-t border-slate-800/60 pt-3 mt-2">
+            <div className="flex items-center gap-3">
+              {isSupported ? (
+                <button
+                  type="button"
+                  onClick={isListening ? stopListening : startListening}
+                  className={`flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-medium transition-all ${
+                    isListening 
+                      ? 'bg-rose-600 text-white animate-pulse shadow-lg shadow-rose-600/20' 
+                      : 'bg-slate-900 text-slate-300 hover:bg-slate-800 border border-slate-800'
+                  }`}
+                >
+                  {isListening ? (
+                    <>
+                      <MicOff className="h-4 w-4" />
+                      <span>หยุดบันทึกเสียง</span>
+                    </>
+                  ) : (
+                    <>
+                      <Mic className="h-4 w-4 text-indigo-400" />
+                      <span>บันทึกเสียงพูด</span>
+                    </>
+                  )}
+                </button>
+              ) : (
+                <span className="text-[10px] text-slate-500">บราวเซอร์ของคุณไม่รองรับ Speech Recognition</span>
+              )}
+
+              {isListening && (
+                <div className="flex items-center gap-1.5 pl-2">
+                  <div className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping" />
+                  <span className="text-[10px] text-rose-400 font-medium">กำลังรับฟังเสียง...</span>
+                </div>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={handleGlobalAIParsing}
+              disabled={aiParsing || !aiStoryText.trim()}
+              className="flex items-center justify-center gap-2 px-5 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 disabled:text-slate-500 text-white text-xs font-semibold rounded-xl transition-all shadow-md shadow-indigo-600/10 cursor-pointer"
+            >
+              {aiParsing ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
+                  <span>กำลังวิเคราะห์...</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles className="h-4 w-4" />
+                  <span>ประมวลผลด้วย AI</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* Examples section */}
+        <div className="mt-4">
+          <p className="text-[10px] text-slate-500 font-medium mb-2 uppercase tracking-wider">💡 แนะนำตัวอย่างการพูดสั่งงาน (กดคลิกเพื่อลองสคริปต์):</p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setAiStoryText("บันทึกแผนงานโครงการประจำปีงบประมาณ 2569 ชื่อโครงการ เผยแพร่ความรู้สิทธิตามกฎหมาย มีกิจกรรมย่อย ได้แก่ 1. สัมมนาเจ้าหน้าที่ วันเริ่ม 1 กุมภาพันธ์ 2569 ถึง 15 กุมภาพันธ์ 2569 งบประมาณ 15000 บาท 2. ลงพื้นที่ชุมชน วันเริ่ม 1 มีนาคม 2569 ถึง 30 เมษายน 2569 งบประมาณ 20000 บาท บันทึกโดย นางสาวสมรัก ยิ้มแย้ม โทร 0891234567")}
+              className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800/80 text-[10px] text-slate-400 hover:text-slate-200 transition-all font-light cursor-pointer"
+            >
+              📋 แผนโครงการประจำปี
+            </button>
+            <button
+              type="button"
+              onClick={() => setAiStoryText("รายงานไกล่เกลี่ยข้อพิพาททางแพ่ง เลขคำร้อง กก.02/2569 วันที่รับคำร้อง 1 มิถุนายน 2569 ทุนทรัพย์ 120000 บาท คดีกู้ยืมเงิน ผลการไกล่เกลี่ยตกลงกันได้สำเร็จ โดยไกล่เกลี่ยสำเร็จวันที่ 20 มิถุนายน 2569 บันทึกโดย นายรุ่งโรจน์ สมบูรณ์ โทร 0867891234")}
+              className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800/80 text-[10px] text-slate-400 hover:text-slate-200 transition-all font-light cursor-pointer"
+            >
+              ⚖️ รายงานไกล่เกลี่ย พ.ร.บ.
+            </button>
+            <button
+              type="button"
+              onClick={() => setAiStoryText("บันทึกการประชุมคณะทำงาน วันประชุมวันที่ 25 มิถุนายน 2569 เวลา 9 โมงเช้า ที่ห้องประชุมใหญ่ชั้น 5 หัวเรื่องประชุม ติดตามผลงานประจำปี ประธานการประชุมคือ นายทวีศักดิ์ เลิศล้ำ ผู้จดบันทึกคือ นางสาวอรวรรณ เรียนดี โทร 0856781234 มติการประชุมคือเห็นชอบกับแผนงานรอบปีงบประมาณใหม่")}
+              className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800/80 text-[10px] text-slate-400 hover:text-slate-200 transition-all font-light cursor-pointer"
+            >
+              👥 บันทึกจัดประชุมคณะทำงาน
+            </button>
+            <button
+              type="button"
+              onClick={() => setAiStoryText("ในรอบเดือนมิถุนายน 2569 นี้ ทางศูนย์ประสานงานไกล่เกลี่ยภาคประชาชนไม่มีรายงานหรือผลงานการดำเนินโครงการประชุมหรือการเจรจาคดีใดๆ บันทึกโดย นายวินัย รักสงบ โทร 0811112233")}
+              className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800/80 text-[10px] text-slate-400 hover:text-slate-200 transition-all font-light cursor-pointer"
+            >
+              📭 รายงานไม่มีผลงาน (Zero)
+            </button>
+          </div>
         </div>
       </div>
 

@@ -530,6 +530,48 @@ export default function CategoryPage({ params }: { params: Promise<{ category: s
     }
   }, [category, currentPage, searchTerm, user, profile]);
 
+  // Check for global mic pending data
+  useEffect(() => {
+    const pendingData = sessionStorage.getItem('ai_pending_autofill');
+    if (pendingData) {
+      try {
+        const { category: pendingCategory, data } = JSON.parse(pendingData);
+        if (pendingCategory === category) {
+          setModalOpen(true);
+          setEditingId(null);
+          setFormData((prev: any) => ({
+            ...prev,
+            ...data
+          }));
+
+          const highlights: Record<string, boolean> = {};
+          Object.keys(data).forEach(key => {
+            if (data[key] !== undefined && data[key] !== null && data[key] !== '') {
+              highlights[key] = true;
+            }
+          });
+          setHighlightFields(highlights);
+          setTimeout(() => {
+            setHighlightFields({});
+          }, 6000);
+
+          Swal.fire({
+            icon: 'success',
+            title: 'ดึงข้อมูล AI จากหน้าหลักสำเร็จ',
+            text: `ระบบได้กรอกข้อมูลรายงาน${activeConfig?.title || ''}ที่ AI วิเคราะห์ได้เรียบร้อยแล้ว กรุณาตรวจสอบข้อมูลที่ไฮไลต์ก่อนบันทึก`,
+            confirmButtonColor: '#4f46e5',
+            background: '#0f172a',
+            color: '#f8fafc'
+          });
+        }
+      } catch (err) {
+        console.error('Error parsing pending global mic data in category page:', err);
+      } finally {
+        sessionStorage.removeItem('ai_pending_autofill');
+      }
+    }
+  }, [category, profile]);
+
   if (!activeConfig) {
     return (
       <div className="text-center py-12">

@@ -119,6 +119,57 @@ export default function PlansPage() {
     }
   }, [profile, modalOpen, editingId]);
 
+  // Check for global mic pending data
+  useEffect(() => {
+    const pendingData = sessionStorage.getItem('ai_pending_autofill');
+    if (pendingData) {
+      try {
+        const { category, data } = JSON.parse(pendingData);
+        if (category === 'plans') {
+          setModalOpen(true);
+          setFormData((prev: any) => ({
+            ...prev,
+            ...data
+          }));
+          if (data.activities && Array.isArray(data.activities)) {
+            setSubActivities(data.activities.map((act: any) => ({
+              name: act.name || '',
+              start_date: act.start_date || '',
+              end_date: act.end_date || '',
+              budget: act.budget || '',
+              owner: act.owner || '',
+              status: act.status || 'Not Started'
+            })));
+          }
+
+          const highlights: Record<string, boolean> = {};
+          Object.keys(data).forEach(key => {
+            if (data[key] !== undefined && data[key] !== null && data[key] !== '') {
+              highlights[key] = true;
+            }
+          });
+          setHighlightFields(highlights);
+          setTimeout(() => {
+            setHighlightFields({});
+          }, 6000);
+
+          Swal.fire({
+            icon: 'success',
+            title: 'ดึงข้อมูล AI จากหน้าหลักสำเร็จ',
+            text: 'ระบบได้กรอกข้อมูลโครงการและกิจกรรมย่อยที่ AI ดึงข้อมูลได้เรียบร้อยแล้ว กรุณาตรวจสอบข้อมูลที่ไฮไลต์และกิจกรรมย่อยก่อนบันทึก',
+            confirmButtonColor: '#4f46e5',
+            background: '#0f172a',
+            color: '#f8fafc'
+          });
+        }
+      } catch (err) {
+        console.error('Error parsing pending global mic data:', err);
+      } finally {
+        sessionStorage.removeItem('ai_pending_autofill');
+      }
+    }
+  }, [profile]);
+
   const fetchData = async () => {
     if (!user) return;
     setLoading(true);
