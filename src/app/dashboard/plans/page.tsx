@@ -416,8 +416,16 @@ export default function PlansPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          category: 'plans',
           story: aiStoryText,
+          fieldsSchema: [
+            { name: 'title', label: 'ชื่อแผนงาน/โครงการ', type: 'text' },
+            { name: 'year', label: 'ปีงบประมาณ (พ.ศ.)', type: 'text' },
+            { name: 'project_description', label: 'รายละเอียดของแผนงาน/วัตถุประสงค์โครงการ', type: 'textarea' },
+            { name: 'reporter_name', label: 'ชื่อผู้บันทึกรายงาน', type: 'text' },
+            { name: 'reporter_phone', label: 'เบอร์ติดต่อผู้บันทึกรายงาน', type: 'text' },
+            { name: 'source_info', label: 'ชื่อผู้ประสานงานหลัก', type: 'text' },
+            { name: 'source_contact', label: 'เบอร์โทรติดต่อผู้ประสานงาน', type: 'text' }
+          ]
         }),
       });
 
