@@ -8,6 +8,7 @@ interface FieldSchemaInput {
   label: string;
   type: string;
   options?: { value: string; label: string }[];
+  items?: unknown;
 }
 
 export async function POST(request: Request) {
@@ -38,16 +39,24 @@ export async function POST(request: Request) {
       // ไม่ต้องให้ AI วิเคราะห์ฟิลด์ประเภทไฟล์ หรือฟิลด์ที่คำนวณอัตโนมัติ
       if (field.type === 'file') return;
 
-      const descParts = [field.label];
-      if (field.options && field.options.length > 0) {
-        const optionValues = field.options.map(opt => opt.value);
-        descParts.push(`ต้องเลือกจากตัวเลือกดังต่อไปนี้เท่านั้น: ${optionValues.join(', ')}`);
-      }
+      if (field.type === 'array') {
+        properties[field.name] = {
+          type: 'array',
+          description: field.label,
+          items: field.items || { type: 'string' }
+        };
+      } else {
+        const descParts = [field.label];
+        if (field.options && field.options.length > 0) {
+          const optionValues = field.options.map(opt => opt.value);
+          descParts.push(`ต้องเลือกจากตัวเลือกดังต่อไปนี้เท่านั้น: ${optionValues.join(', ')}`);
+        }
 
-      properties[field.name] = {
-        type: field.type === 'number' ? 'number' : 'string',
-        description: descParts.join('. ')
-      };
+        properties[field.name] = {
+          type: field.type === 'number' ? 'number' : 'string',
+          description: descParts.join('. ')
+        };
+      }
 
       // ทุกฟิลด์ที่เราต้องการแยก ให้อยู่ใน required เพื่อป้องกัน AI ละเลยคอลัมน์
       requiredFields.push(field.name);
@@ -57,6 +66,9 @@ export async function POST(request: Request) {
     const fieldsText = fieldsSchema
       .filter(f => f.type !== 'file')
       .map(f => {
+        if (f.type === 'array') {
+          return `- ${f.name} (รายการออบเจกต์กิจกรรมย่อย): ${f.label}`;
+        }
         const opts = f.options ? ` (ตัวเลือกที่เป็นไปได้: ${f.options.map(o => o.value).join(', ')})` : '';
         return `- ${f.name} (${f.label})${opts}`;
       })

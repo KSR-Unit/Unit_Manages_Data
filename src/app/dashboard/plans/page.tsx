@@ -424,7 +424,27 @@ export default function PlansPage() {
             { name: 'reporter_name', label: 'ชื่อผู้บันทึกรายงาน', type: 'text' },
             { name: 'reporter_phone', label: 'เบอร์ติดต่อผู้บันทึกรายงาน', type: 'text' },
             { name: 'source_info', label: 'ชื่อผู้ประสานงานหลัก', type: 'text' },
-            { name: 'source_contact', label: 'เบอร์โทรติดต่อผู้ประสานงาน', type: 'text' }
+            { name: 'source_contact', label: 'เบอร์โทรติดต่อผู้ประสานงาน', type: 'text' },
+            { 
+              name: 'activities', 
+              label: 'รายการกิจกรรมย่อยทั้งหมดภายใต้แผนงานโครงการนี้', 
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  name: { type: 'string', description: 'ชื่อกิจกรรมย่อย' },
+                  start_date: { type: 'string', description: 'วันเริ่มต้นกิจกรรมย่อย รูปแบบ YYYY-MM-DD' },
+                  end_date: { type: 'string', description: 'วันสิ้นสุดกิจกรรมย่อย รูปแบบ YYYY-MM-DD' },
+                  budget: { type: 'string', description: 'งบประมาณที่ใช้สำหรับกิจกรรมย่อย (ตัวเลขไม่มีจุลภาคคั่น)' },
+                  owner: { type: 'string', description: 'ชื่อผู้รับผิดชอบกิจกรรมย่อย' },
+                  status: { 
+                    type: 'string', 
+                    description: 'สถานะกิจกรรมย่อย เลือกค่าจาก: Not Started, In Progress, Completed, Delayed เท่านั้น' 
+                  }
+                },
+                required: ['name', 'start_date', 'end_date']
+              }
+            }
           ]
         }),
       });
@@ -439,8 +459,21 @@ export default function PlansPage() {
 
         Object.keys(parsed).forEach((key) => {
           if (parsed[key] !== undefined && parsed[key] !== null) {
-            newFormData[key] = parsed[key];
-            highlights[key] = true;
+            if (key === 'activities') {
+              if (Array.isArray(parsed.activities)) {
+                setSubActivities(parsed.activities.map((act: any) => ({
+                  name: act.name || '',
+                  start_date: act.start_date || '',
+                  end_date: act.end_date || '',
+                  budget: act.budget || '',
+                  owner: act.owner || '',
+                  status: act.status || 'Not Started'
+                })));
+              }
+            } else {
+              newFormData[key] = parsed[key];
+              highlights[key] = true;
+            }
           }
         });
 
