@@ -257,7 +257,7 @@ export default function CategoryPage({ params }: { params: Promise<{ category: s
         { 
           name: 'training_format', 
           label: 'รูปแบบการอบรม', 
-          type: 'select', 
+          type: 'radio', 
           required: true, 
           options: [
             { value: 'ออนไลน์', label: 'ออนไลน์' },
@@ -879,14 +879,14 @@ export default function CategoryPage({ params }: { params: Promise<{ category: s
     };
     
     if (category === 'trainings') {
-      initialForm.training_format = 'ออนไลน์';
+      initialForm.training_format = '';
       initialForm.trainee_name = '';
       initialForm.end_date = '';
       initialForm.summary = '';
     }
 
     activeConfig.fields.forEach(field => {
-      if (field.type === 'select' && field.options && !initialForm[field.name]) {
+      if ((field.type === 'select' || field.type === 'radio') && field.options && !initialForm[field.name]) {
         initialForm[field.name] = '';
       }
     });
@@ -983,10 +983,33 @@ export default function CategoryPage({ params }: { params: Promise<{ category: s
         responseError = error;
       } else {
         // Insert record
-        const { error } = await supabase
-          .from(activeConfig.table)
-          .insert([payload]);
-        responseError = error;
+        if (category === 'trainings' && payload.trainee_name) {
+          const traineeNames = payload.trainee_name
+            .split(/[,;\n\r\t，、]/)
+            .map((name: string) => name.trim())
+            .filter((name: string) => name.length > 0);
+          
+          if (traineeNames.length > 0) {
+            const payloads = traineeNames.map((name: string) => ({
+              ...payload,
+              trainee_name: name
+            }));
+            const { error } = await supabase
+              .from(activeConfig.table)
+              .insert(payloads);
+            responseError = error;
+          } else {
+            const { error } = await supabase
+              .from(activeConfig.table)
+              .insert([payload]);
+            responseError = error;
+          }
+        } else {
+          const { error } = await supabase
+            .from(activeConfig.table)
+            .insert([payload]);
+          responseError = error;
+        }
       }
 
       if (responseError) throw responseError;
