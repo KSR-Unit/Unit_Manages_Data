@@ -444,120 +444,6 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* AI Voice Command Center (ไมโครโฟนกลาง) */}
-      <div className="bg-gradient-to-br from-indigo-950/40 via-slate-900/40 to-slate-900/40 border border-slate-800/60 p-6 rounded-2xl relative overflow-hidden shadow-xl">
-        <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
-        
-        <div className="flex items-center gap-2 mb-4">
-          <div className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-400">
-            <Sparkles className="h-5 w-5 animate-pulse" />
-          </div>
-          <span className="text-sm font-semibold text-slate-200">ศูนย์กลางเสียงสั่งงานอัจฉริยะ (Global AI Voice Assistant)</span>
-        </div>
-
-        {/* Recording Container (Without headers/descriptions as requested) */}
-        <div className="relative rounded-xl border border-slate-800 bg-slate-950/80 p-4">
-          <textarea
-            value={aiStoryText}
-            onChange={(e) => setAiStoryText(e.target.value)}
-            placeholder="แตะไมค์แล้วเริ่มพูดเล่าเรื่องโครงการ แผนงาน หรือรายงานคดีไกล่เกลี่ยที่นี่... หรือจะพิมพ์บอกรายละเอียดโดยตรงก็ได้เช่นกัน..."
-            className="w-full bg-transparent border-0 text-slate-100 placeholder-slate-500 text-sm focus:ring-0 focus:outline-none resize-y min-h-[120px] font-light leading-relaxed"
-            rows={5}
-          />
-          
-          <div className="flex items-center justify-between border-t border-slate-800/60 pt-3 mt-2">
-            <div className="flex items-center gap-3">
-              {isSupported ? (
-                <button
-                  type="button"
-                  onClick={isListening ? stopListening : startListening}
-                  className={`flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-medium transition-all ${
-                    isListening 
-                      ? 'bg-rose-600 text-white animate-pulse shadow-lg shadow-rose-600/20' 
-                      : 'bg-slate-900 text-slate-300 hover:bg-slate-800 border border-slate-800'
-                  }`}
-                >
-                  {isListening ? (
-                    <>
-                      <MicOff className="h-4 w-4" />
-                      <span>หยุดบันทึกเสียง</span>
-                    </>
-                  ) : (
-                    <>
-                      <Mic className="h-4 w-4 text-indigo-400" />
-                      <span>บันทึกเสียงพูด</span>
-                    </>
-                  )}
-                </button>
-              ) : (
-                <span className="text-[10px] text-slate-500">บราวเซอร์ของคุณไม่รองรับ Speech Recognition</span>
-              )}
-
-              {isListening && (
-                <div className="flex items-center gap-1.5 pl-2">
-                  <div className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping" />
-                  <span className="text-[10px] text-rose-400 font-medium">กำลังรับฟังเสียง...</span>
-                </div>
-              )}
-            </div>
-
-            <button
-              type="button"
-              onClick={handleGlobalAIParsing}
-              disabled={aiParsing || !aiStoryText.trim()}
-              className="flex items-center justify-center gap-2 px-5 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 disabled:text-slate-500 text-white text-xs font-semibold rounded-xl transition-all shadow-md shadow-indigo-600/10 cursor-pointer"
-            >
-              {aiParsing ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
-                  <span>กำลังวิเคราะห์...</span>
-                </>
-              ) : (
-                <>
-                  <Sparkles className="h-4 w-4" />
-                  <span>ประมวลผลด้วย AI</span>
-                </>
-              )}
-            </button>
-          </div>
-        </div>
-
-        {/* Examples section */}
-        <div className="mt-4">
-          <p className="text-[10px] text-slate-500 font-medium mb-2 uppercase tracking-wider">💡 แนะนำตัวอย่างการพูดสั่งงาน (กดคลิกเพื่อลองสคริปต์):</p>
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => setAiStoryText("บันทึกแผนงานโครงการประจำปีงบประมาณ 2569 ชื่อโครงการ เผยแพร่ความรู้สิทธิตามกฎหมาย มีกิจกรรมย่อย ได้แก่ 1. สัมมนาเจ้าหน้าที่ วันเริ่ม 1 กุมภาพันธ์ 2569 ถึง 15 กุมภาพันธ์ 2569 งบประมาณ 15000 บาท 2. ลงพื้นที่ชุมชน วันเริ่ม 1 มีนาคม 2569 ถึง 30 เมษายน 2569 งบประมาณ 20000 บาท บันทึกโดย นางสาวสมรัก ยิ้มแย้ม โทร 0891234567")}
-              className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800/80 text-[10px] text-slate-400 hover:text-slate-200 transition-all font-light cursor-pointer"
-            >
-              📋 แผนโครงการประจำปี
-            </button>
-            <button
-              type="button"
-              onClick={() => setAiStoryText("รายงานไกล่เกลี่ยข้อพิพาททางแพ่ง เลขคำร้อง กก.02/2569 วันที่รับคำร้อง 1 มิถุนายน 2569 ทุนทรัพย์ 120000 บาท คดีกู้ยืมเงิน ผลการไกล่เกลี่ยตกลงกันได้สำเร็จ โดยไกล่เกลี่ยสำเร็จวันที่ 20 มิถุนายน 2569 บันทึกโดย นายรุ่งโรจน์ สมบูรณ์ โทร 0867891234")}
-              className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800/80 text-[10px] text-slate-400 hover:text-slate-200 transition-all font-light cursor-pointer"
-            >
-              ⚖️ รายงานไกล่เกลี่ย พ.ร.บ.
-            </button>
-            <button
-              type="button"
-              onClick={() => setAiStoryText("บันทึกการประชุมคณะทำงาน วันประชุมวันที่ 25 มิถุนายน 2569 เวลา 9 โมงเช้า ที่ห้องประชุมใหญ่ชั้น 5 หัวเรื่องประชุม ติดตามผลงานประจำปี ประธานการประชุมคือ นายทวีศักดิ์ เลิศล้ำ ผู้จดบันทึกคือ นางสาวอรวรรณ เรียนดี โทร 0856781234 มติการประชุมคือเห็นชอบกับแผนงานรอบปีงบประมาณใหม่")}
-              className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800/80 text-[10px] text-slate-400 hover:text-slate-200 transition-all font-light cursor-pointer"
-            >
-              👥 บันทึกจัดประชุมคณะทำงาน
-            </button>
-            <button
-              type="button"
-              onClick={() => setAiStoryText("ในรอบเดือนมิถุนายน 2569 นี้ ทางศูนย์ประสานงานไกล่เกลี่ยภาคประชาชนไม่มีรายงานหรือผลงานการดำเนินโครงการประชุมหรือการเจรจาคดีใดๆ บันทึกโดย นายวินัย รักสงบ โทร 0811112233")}
-              className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800/80 text-[10px] text-slate-400 hover:text-slate-200 transition-all font-light cursor-pointer"
-            >
-              📭 รายงานไม่มีผลงาน (Zero)
-            </button>
-          </div>
-        </div>
-      </div>
-
       {/* Bento Grid: Module KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
         <div className="bg-slate-900 border border-slate-800/80 p-5 rounded-2xl hover:border-indigo-500/30 transition-all group">
@@ -770,6 +656,120 @@ export default function DashboardPage() {
           </div>
         </div>
 
+      </div>
+
+      {/* AI Voice Command Center (ไมโครโฟนกลาง) */}
+      <div className="bg-gradient-to-br from-indigo-950/40 via-slate-900/40 to-slate-900/40 border border-slate-800/60 p-6 rounded-2xl relative overflow-hidden shadow-xl mt-8">
+        <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+        
+        <div className="flex items-center gap-2 mb-4">
+          <div className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-400">
+            <Sparkles className="h-5 w-5 animate-pulse" />
+          </div>
+          <span className="text-sm font-semibold text-slate-200">ศูนย์กลางเสียงสั่งงานอัจฉริยะ (Global AI Voice Assistant)</span>
+        </div>
+
+        {/* Recording Container (Without headers/descriptions as requested) */}
+        <div className="relative rounded-xl border border-slate-800 bg-slate-950/80 p-4">
+          <textarea
+            value={aiStoryText}
+            onChange={(e) => setAiStoryText(e.target.value)}
+            placeholder="แตะไมค์แล้วเริ่มพูดเล่าเรื่องโครงการ แผนงาน หรือรายงานคดีไกล่เกลี่ยที่นี่... หรือจะพิมพ์บอกรายละเอียดโดยตรงก็ได้เช่นกัน..."
+            className="w-full bg-transparent border-0 text-slate-100 placeholder-slate-500 text-sm focus:ring-0 focus:outline-none resize-y min-h-[120px] font-light leading-relaxed"
+            rows={5}
+          />
+          
+          <div className="flex items-center justify-between border-t border-slate-800/60 pt-3 mt-2">
+            <div className="flex items-center gap-3">
+              {isSupported ? (
+                <button
+                  type="button"
+                  onClick={isListening ? stopListening : startListening}
+                  className={`flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-medium transition-all ${
+                    isListening 
+                      ? 'bg-rose-600 text-white animate-pulse shadow-lg shadow-rose-600/20' 
+                      : 'bg-slate-900 text-slate-300 hover:bg-slate-800 border border-slate-800'
+                  }`}
+                >
+                  {isListening ? (
+                    <>
+                      <MicOff className="h-4 w-4" />
+                      <span>หยุดบันทึกเสียง</span>
+                    </>
+                  ) : (
+                    <>
+                      <Mic className="h-4 w-4 text-indigo-400" />
+                      <span>บันทึกเสียงพูด</span>
+                    </>
+                  )}
+                </button>
+              ) : (
+                <span className="text-[10px] text-slate-500">บราวเซอร์ของคุณไม่รองรับ Speech Recognition</span>
+              )}
+
+              {isListening && (
+                <div className="flex items-center gap-1.5 pl-2">
+                  <div className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping" />
+                  <span className="text-[10px] text-rose-400 font-medium">กำลังรับฟังเสียง...</span>
+                </div>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={handleGlobalAIParsing}
+              disabled={aiParsing || !aiStoryText.trim()}
+              className="flex items-center justify-center gap-2 px-5 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 disabled:text-slate-500 text-white text-xs font-semibold rounded-xl transition-all shadow-md shadow-indigo-600/10 cursor-pointer"
+            >
+              {aiParsing ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
+                  <span>กำลังวิเคราะห์...</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles className="h-4 w-4" />
+                  <span>ประมวลผลด้วย AI</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* Examples section */}
+        <div className="mt-4">
+          <p className="text-[10px] text-slate-500 font-medium mb-2 uppercase tracking-wider">💡 แนะนำตัวอย่างการพูดสั่งงาน (กดคลิกเพื่อลองสคริปต์):</p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setAiStoryText("บันทึกแผนงานโครงการประจำปีงบประมาณ 2569 ชื่อโครงการ เผยแพร่ความรู้สิทธิตามกฎหมาย มีกิจกรรมย่อย ได้แก่ 1. สัมมนาเจ้าหน้าที่ วันเริ่ม 1 กุมภาพันธ์ 2569 ถึง 15 กุมภาพันธ์ 2569 งบประมาณ 15000 บาท 2. ลงพื้นที่ชุมชน วันเริ่ม 1 มีนาคม 2569 ถึง 30 เมษายน 2569 งบประมาณ 20000 บาท บันทึกโดย นางสาวสมรัก ยิ้มแย้ม โทร 0891234567")}
+              className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800/80 text-[10px] text-slate-400 hover:text-slate-200 transition-all font-light cursor-pointer"
+            >
+              📋 แผนโครงการประจำปี
+            </button>
+            <button
+              type="button"
+              onClick={() => setAiStoryText("รายงานไกล่เกลี่ยข้อพิพาททางแพ่ง เลขคำร้อง กก.02/2569 วันที่รับคำร้อง 1 มิถุนายน 2569 ทุนทรัพย์ 120000 บาท คดีกู้ยืมเงิน ผลการไกล่เกลี่ยตกลงกันได้สำเร็จ โดยไกล่เกลี่ยสำเร็จวันที่ 20 มิถุนายน 2569 บันทึกโดย นายรุ่งโรจน์ สมบูรณ์ โทร 0867891234")}
+              className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800/80 text-[10px] text-slate-400 hover:text-slate-200 transition-all font-light cursor-pointer"
+            >
+              ⚖️ รายงานไกล่เกลี่ย พ.ร.บ.
+            </button>
+            <button
+              type="button"
+              onClick={() => setAiStoryText("บันทึกการประชุมคณะทำงาน วันประชุมวันที่ 25 มิถุนายน 2569 เวลา 9 โมงเช้า ที่ห้องประชุมใหญ่ชั้น 5 หัวเรื่องประชุม ติดตามผลงานประจำปี ประธานการประชุมคือ นายทวีศักดิ์ เลิศล้ำ ผู้จดบันทึกคือ นางสาวอรวรรณ เรียนดี โทร 0856781234 มติการประชุมคือเห็นชอบกับแผนงานรอบปีงบประมาณใหม่")}
+              className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800/80 text-[10px] text-slate-400 hover:text-slate-200 transition-all font-light cursor-pointer"
+            >
+              👥 บันทึกจัดประชุมคณะทำงาน
+            </button>
+            <button
+              type="button"
+              onClick={() => setAiStoryText("ในรอบเดือนมิถุนายน 2569 นี้ ทางศูนย์ประสานงานไกล่เกลี่ยภาคประชาชนไม่มีรายงานหรือผลงานการดำเนินโครงการประชุมหรือการเจรจาคดีใดๆ บันทึกโดย นายวินัย รักสงบ โทร 0811112233")}
+              className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800/80 text-[10px] text-slate-400 hover:text-slate-200 transition-all font-light cursor-pointer"
+            >
+              📭 รายงานไม่มีผลงาน (Zero)
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

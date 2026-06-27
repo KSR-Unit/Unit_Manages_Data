@@ -94,17 +94,20 @@ const SCHEMAS: Record<string, { properties: Record<string, any>; required: strin
   },
   trainings: {
     properties: {
+      training_format: { type: 'string', description: 'รูปแบบการอบรม (ต้องเลือกจาก: ออนไลน์, ออนไซต์ เท่านั้น)' },
+      trainee_name: { type: 'string', description: 'ชื่อ-สกุลผู้เข้าอบรม (หากมีหลายคนให้สรุปด้วยจุลภาคคั่น เช่น นายสมชาย รักดี, นางสมใจ งามดี)' },
       course_name: { type: 'string', description: 'ชื่อหลักสูตรอบรม' },
-      training_date: { type: 'string', description: 'วันที่จัดอบรม รูปแบบ YYYY-MM-DD' },
+      training_date: { type: 'string', description: 'วันที่จัดอบรมเริ่มต้น รูปแบบ YYYY-MM-DD' },
+      end_date: { type: 'string', description: 'วันที่จัดอบรมเสร็จสิ้น รูปแบบ YYYY-MM-DD' },
       unit_training: { type: 'string', description: 'หน่วยงานผู้จัด' },
       location: { type: 'string', description: 'สถานที่จัดอบรม' },
-      summary: { type: 'string', description: 'ผลสรุปการอบรม/สิ่งที่ได้เรียนรู้' },
+      summary: { type: 'string', description: 'ผลสรุปการอบรม/สรุปความรู้อื่นๆ' },
       reporter_name: { type: 'string', description: 'ชื่อผู้บันทึกรายงานอบรม/ผู้ส่งรายงาน (เช่น บันทึกโดย นาย...)' },
       reporter_phone: { type: 'string', description: 'เบอร์โทรศัพท์ติดต่อของผู้บันทึกรายงาน' },
       source_info: { type: 'string', description: 'ชื่อผู้ประสานงานหลัก หรือผู้ดูแลเรื่องการฝึกอบรม' },
       source_contact: { type: 'string', description: 'เบอร์โทรติดต่อผู้ประสานงานฝึกอบรม' },
     },
-    required: ['course_name', 'training_date'],
+    required: ['training_format', 'trainee_name', 'course_name', 'training_date'],
   },
   budgets: {
     properties: {

@@ -49,6 +49,11 @@ export default function CategoryPage({ params }: { params: Promise<{ category: s
   const [uploadedFileUrl, setUploadedFileUrl] = useState<string>('');
   const [uploadedFileName, setUploadedFileName] = useState<string>('');
 
+  // OCR Certificate states
+  const [ocrLoading, setOcrLoading] = useState(false);
+  const [pendingFileBase64, setPendingFileBase64] = useState('');
+  const [pendingFileMime, setPendingFileMime] = useState('');
+
   // Form state
   const [formData, setFormData] = useState<any>({});
 
@@ -249,12 +254,24 @@ export default function CategoryPage({ params }: { params: Promise<{ category: s
       table: 'trainings',
       idField: 'id',
       fields: [
+        { 
+          name: 'training_format', 
+          label: 'รูปแบบการอบรม', 
+          type: 'select', 
+          required: true, 
+          options: [
+            { value: 'ออนไลน์', label: 'ออนไลน์' },
+            { value: 'ออนไซต์', label: 'ออนไซต์' }
+          ] 
+        },
+        { name: 'trainee_name', label: 'ชื่อ-สกุลผู้เข้าอบรม', type: 'textarea', required: true, placeholder: 'เช่น นายสมชาย รักเรียน (หากมีหลายคนให้ใช้เครื่องหมายจุลภาคคั่น หรือขึ้นบรรทัดใหม่)' },
         { name: 'course_name', label: 'ชื่อหลักสูตรอบรม', type: 'text', required: true, placeholder: 'เช่น หลักสูตรการเจรจาไกล่เกลี่ยขั้นสูง' },
-        { name: 'training_date', label: 'วันที่จัดอบรม', type: 'date', required: true },
-        { name: 'unit_training', label: 'หน่วยงานผู้จัด', type: 'text', placeholder: 'เช่น กรมคุ้มครองสิทธิและเสรีภาพ' },
-        { name: 'location', label: 'สถานที่จัดอบรม', type: 'text' },
-        { name: 'summary', label: 'ผลสรุปการอบรม', type: 'textarea' },
-        { name: 'file_link', label: 'ใบเกียรติบัตร/เอกสารแนบ', type: 'file' },
+        { name: 'training_date', label: 'วันที่เริ่มต้นจัดอบรม', type: 'date', required: true },
+        { name: 'end_date', label: 'วันที่จัดอบรมเสร็จสิ้น', type: 'date', required: true },
+        { name: 'unit_training', label: 'หน่วยงานผู้จัดอบรม', type: 'text', placeholder: 'เช่น กรมคุ้มครองสิทธิและเสรีภาพ' },
+        { name: 'location', label: 'สถานที่จัดอบรม', type: 'text', placeholder: 'เช่น สถาบันพัฒนาการอบรม หรือผ่านระบบ Zoom' },
+        { name: 'summary', label: 'ผลสรุปการอบรมอื่นๆ', type: 'textarea' },
+        { name: 'file_link', label: 'ใบเกียรติบัตร/เอกสารแนบหลักฐาน', type: 'file' },
         { name: 'reporter_name', label: 'ชื่อผู้บันทึก', type: 'text', required: true },
         { name: 'reporter_phone', label: 'เบอร์ติดต่อผู้บันทึก', type: 'text' },
         { name: 'source_info', label: 'ชื่อผู้ประสานงาน', type: 'text' },
@@ -262,8 +279,9 @@ export default function CategoryPage({ params }: { params: Promise<{ category: s
       ],
       columns: [
         { key: 'course_name', label: 'ชื่อหลักสูตร' },
-        { key: 'training_date', label: 'วันที่จัด', format: (val) => new Date(val).toLocaleDateString('th-TH') },
-        { key: 'unit_training', label: 'หน่วยงานผู้จัด' },
+        { key: 'training_format', label: 'รูปแบบ' },
+        { key: 'trainee_name', label: 'ผู้เข้าอบรม' },
+        { key: 'training_date', label: 'วันที่จัดอบรม', format: (val) => new Date(val).toLocaleDateString('th-TH') },
         { key: 'reporter_name', label: 'ผู้บันทึก' },
       ]
     },
@@ -657,6 +675,17 @@ export default function CategoryPage({ params }: { params: Promise<{ category: s
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // Convert file to Base64 in browser memory for OCR
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        const base64Data = reader.result.split(',')[1];
+        setPendingFileBase64(base64Data);
+        setPendingFileMime(file.type);
+      }
+    };
+    reader.readAsDataURL(file);
+
     setUploading(true);
     try {
       // 1. Generate unique file name
@@ -755,6 +784,81 @@ export default function CategoryPage({ params }: { params: Promise<{ category: s
     }
   };
 
+  const handleRunOCR = async () => {
+    setOcrLoading(true);
+    try {
+      const payload: any = {};
+      if (pendingFileBase64) {
+        payload.fileBase64 = pendingFileBase64;
+        payload.mimeType = pendingFileMime;
+      } else if (uploadedFileUrl) {
+        payload.fileUrl = uploadedFileUrl;
+      } else {
+        throw new Error('ไม่พบไฟล์เกียรติบัตรสำหรับการทำ OCR');
+      }
+
+      const res = await fetch('/api/ai/ocr-certificate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const result = await res.json();
+      if (!res.ok || !result.success) {
+        throw new Error(result.error || result.message || 'การดึงข้อมูล OCR ล้มเหลว');
+      }
+
+      const ocrData = result.data;
+      
+      // อัปเดตฟอร์มด้วยข้อมูลที่ได้จาก OCR
+      setFormData((prev: any) => ({
+        ...prev,
+        trainee_name: ocrData.trainee_name || prev.trainee_name || '',
+        course_name: ocrData.course_name || prev.course_name || '',
+        unit_training: ocrData.unit_training || prev.unit_training || '',
+        training_date: ocrData.start_date || prev.training_date || '',
+        end_date: ocrData.end_date || prev.end_date || '',
+        location: ocrData.location || prev.location || '',
+        training_format: ocrData.training_format || prev.training_format || 'ออนไลน์',
+        summary: ocrData.summary || prev.summary || ''
+      }));
+
+      // ไฮไลต์ฟิลด์ต่างๆ
+      const fieldsToHighlight = ['trainee_name', 'course_name', 'unit_training', 'training_date', 'end_date', 'location', 'training_format', 'summary'];
+      const highlights: Record<string, boolean> = {};
+      fieldsToHighlight.forEach(f => {
+        highlights[f] = true;
+      });
+      setHighlightFields(highlights);
+
+      // ล้างไฮไลต์ใน 5 วินาที
+      setTimeout(() => {
+        setHighlightFields({});
+      }, 5000);
+
+      Swal.fire({
+        icon: 'success',
+        title: 'ดึงข้อมูลสำเร็จ',
+        text: 'คัดแยกข้อมูลและกรอกฟิลด์ต่างๆ ให้คุณเรียบร้อยแล้ว กรุณาตรวจสอบความถูกต้อง',
+        timer: 3000,
+        confirmButtonColor: '#6366f1',
+        confirmButtonText: 'ตกลง'
+      });
+
+    } catch (err: any) {
+      console.error(err);
+      Swal.fire({
+        icon: 'error',
+        title: 'OCR ล้มเหลว',
+        text: err.message || 'เกิดข้อผิดพลาดในการประมวลผลดึงข้อมูล',
+        confirmButtonText: 'ตกลง',
+        confirmButtonColor: '#ef4444'
+      });
+    } finally {
+      setOcrLoading(false);
+    }
+  };
+
   const handleDeleteUploadedFile = (urlToDelete: string) => {
     const currentLinks = formData.file_link ? formData.file_link.split(',') : [];
     const updatedLinks = currentLinks.filter((url: string) => url !== urlToDelete).join(',');
@@ -765,6 +869,8 @@ export default function CategoryPage({ params }: { params: Promise<{ category: s
     setEditingId(null);
     setUploadedFileUrl('');
     setUploadedFileName('');
+    setPendingFileBase64('');
+    setPendingFileMime('');
     
     // Set default values (e.g. reporter_name from profile)
     const initialForm: any = {
@@ -772,8 +878,15 @@ export default function CategoryPage({ params }: { params: Promise<{ category: s
       reporter_phone: profile?.phone || '',
     };
     
+    if (category === 'trainings') {
+      initialForm.training_format = 'ออนไลน์';
+      initialForm.trainee_name = '';
+      initialForm.end_date = '';
+      initialForm.summary = '';
+    }
+
     activeConfig.fields.forEach(field => {
-      if (field.type === 'select' && field.options) {
+      if (field.type === 'select' && field.options && !initialForm[field.name]) {
         initialForm[field.name] = '';
       }
     });
@@ -790,6 +903,8 @@ export default function CategoryPage({ params }: { params: Promise<{ category: s
 
   const handleOpenEditModal = (item: any) => {
     setEditingId(item.id);
+    setPendingFileBase64('');
+    setPendingFileMime('');
     
     let initialForm = { ...item };
     if (category === 'ems_reports' && item.case_type) {
@@ -1375,19 +1490,43 @@ export default function CategoryPage({ params }: { params: Promise<{ category: s
                           </div>
                         ) : (
                           uploadedFileUrl ? (
-                            <div className="flex items-center gap-2 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 p-2.5 rounded-lg w-full max-w-xs justify-between">
-                              <span className="truncate max-w-[180px] text-[10px]">{uploadedFileName}</span>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setUploadedFileUrl('');
-                                  setUploadedFileName('');
-                                  setFormData((prev: any) => ({ ...prev, file_link: '' }));
-                                }}
-                                className="text-indigo-400 hover:text-red-400 transition-colors"
-                              >
-                                <X className="h-3.5 w-3.5" />
-                              </button>
+                            <div className="flex flex-col gap-2 w-full max-w-xs animate-fadeIn">
+                              <div className="flex items-center gap-2 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 p-2.5 rounded-lg w-full justify-between">
+                                <span className="truncate max-w-[180px] text-[10px]">{uploadedFileName}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setUploadedFileUrl('');
+                                    setUploadedFileName('');
+                                    setFormData((prev: any) => ({ ...prev, file_link: '' }));
+                                    setPendingFileBase64('');
+                                    setPendingFileMime('');
+                                  }}
+                                  className="text-indigo-400 hover:text-red-400 transition-colors cursor-pointer"
+                                >
+                                  <X className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                              {category === 'trainings' && (
+                                <button
+                                  type="button"
+                                  onClick={handleRunOCR}
+                                  disabled={ocrLoading || uploading}
+                                  className="w-full inline-flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-800 disabled:text-slate-500 text-white text-[10px] font-semibold py-1.5 px-3 rounded-lg transition-all cursor-pointer shadow-md shadow-indigo-600/10"
+                                >
+                                  {ocrLoading ? (
+                                    <>
+                                      <Loader2 className="animate-spin h-3.5 w-3.5 text-slate-400" />
+                                      <span>กำลังประมวลผลดึงข้อมูล (OCR)...</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Sparkles className="h-3.5 w-3.5 text-indigo-200" />
+                                      <span>🤖 ดึงข้อมูลจากเกียรติบัตรด้วย AI (OCR)</span>
+                                    </>
+                                  )}
+                                </button>
+                              )}
                             </div>
                           ) : (
                             <div className="flex flex-col items-center">
