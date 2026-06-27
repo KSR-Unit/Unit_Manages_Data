@@ -264,7 +264,7 @@ export default function CategoryPage({ params }: { params: Promise<{ category: s
             { value: 'ออนไซต์', label: 'ออนไซต์' }
           ] 
         },
-        { name: 'trainee_name', label: 'ชื่อ-สกุลผู้เข้าอบรม', type: 'textarea', required: true, placeholder: 'เช่น นายสมชาย รักเรียน (หากมีหลายคนให้ใช้เครื่องหมายจุลภาคคั่น หรือขึ้นบรรทัดใหม่)' },
+        { name: 'trainee_name', label: 'ชื่อ-สกุลผู้เข้าอบรม', type: 'text', required: true, placeholder: 'เช่น นายสมชาย รักดี' },
         { name: 'course_name', label: 'ชื่อหลักสูตรอบรม', type: 'text', required: true, placeholder: 'เช่น หลักสูตรการเจรจาไกล่เกลี่ยขั้นสูง' },
         { name: 'training_date', label: 'วันที่เริ่มต้นจัดอบรม', type: 'date', required: true },
         { name: 'end_date', label: 'วันที่จัดอบรมเสร็จสิ้น', type: 'date', required: true },
@@ -983,33 +983,10 @@ export default function CategoryPage({ params }: { params: Promise<{ category: s
         responseError = error;
       } else {
         // Insert record
-        if (category === 'trainings' && payload.trainee_name) {
-          const traineeNames = payload.trainee_name
-            .split(/[,;\n\r\t，、]/)
-            .map((name: string) => name.trim())
-            .filter((name: string) => name.length > 0);
-          
-          if (traineeNames.length > 0) {
-            const payloads = traineeNames.map((name: string) => ({
-              ...payload,
-              trainee_name: name
-            }));
-            const { error } = await supabase
-              .from(activeConfig.table)
-              .insert(payloads);
-            responseError = error;
-          } else {
-            const { error } = await supabase
-              .from(activeConfig.table)
-              .insert([payload]);
-            responseError = error;
-          }
-        } else {
-          const { error } = await supabase
-            .from(activeConfig.table)
-            .insert([payload]);
-          responseError = error;
-        }
+        const { error } = await supabase
+          .from(activeConfig.table)
+          .insert([payload]);
+        responseError = error;
       }
 
       if (responseError) throw responseError;
