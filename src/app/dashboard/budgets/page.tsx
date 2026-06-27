@@ -511,6 +511,76 @@ export default function BudgetsPage() {
     'จ่ายจริง': b.actual_spent
   }));
 
+  const renderStepper = (currentStatus: string, onStepClick?: (status: string) => void) => {
+    const currentIndex = STEPPER_STATES.indexOf(currentStatus);
+    
+    return (
+      <div className="overflow-x-auto pb-4 pt-2 bg-slate-950/40 rounded-xl border border-slate-800/60 p-6 no-scrollbar">
+        <div className="min-w-[850px] relative py-8 px-12">
+          {/* Background Line */}
+          <div className="absolute top-[44px] left-[96px] right-[96px] h-[3px] bg-slate-800 rounded-full z-0" />
+          
+          {/* Progress Line */}
+          <div className="absolute top-[44px] left-[96px] right-[96px] h-[3px] z-0 pointer-events-none">
+            <div 
+              className="h-full bg-indigo-500 rounded-full transition-all duration-500" 
+              style={{ width: `${currentIndex >= 0 ? (currentIndex / (STEPPER_STATES.length - 1)) * 100 : 0}%` }}
+            />
+          </div>
+
+          {/* Steps Nodes */}
+          <div className="relative flex justify-between items-start z-10">
+            {STEPPER_STATES.map((state, idx) => {
+              const isCurrent = currentStatus === state;
+              const isPassed = STEPPER_STATES.indexOf(currentStatus) > idx;
+              const isPassedOrCurrent = STEPPER_STATES.indexOf(currentStatus) >= idx;
+
+              return (
+                <div 
+                  key={state} 
+                  className={`flex flex-col items-center relative w-24 ${onStepClick ? 'cursor-pointer group' : ''}`}
+                  onClick={() => onStepClick && onStepClick(state)}
+                >
+                  {/* Circle node */}
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300 z-10 ${
+                    isCurrent 
+                      ? 'bg-indigo-600 border-2 border-indigo-400 text-white scale-110 shadow-lg shadow-indigo-600/30' 
+                      : isPassed 
+                        ? 'bg-indigo-600 text-white border-2 border-indigo-600' 
+                        : 'bg-slate-900 border border-slate-800 text-slate-600'
+                  }`}>
+                    {isPassed ? (
+                      <span className="text-[12px] font-bold">✓</span>
+                    ) : (
+                      isCurrent ? (
+                        <div className="w-2.5 h-2.5 rounded-full bg-white relative">
+                          <div className="absolute inset-0 bg-white rounded-full animate-ping opacity-75" />
+                        </div>
+                      ) : (
+                        <div className="w-1.5 h-1.5 rounded-full bg-slate-800" />
+                      )
+                    )}
+                  </div>
+                  
+                  {/* Label */}
+                  <span className={`text-[10px] text-center mt-3 font-medium transition-all ${
+                    isCurrent 
+                      ? 'text-indigo-400 font-bold' 
+                      : isPassedOrCurrent
+                        ? 'text-slate-200' 
+                        : 'text-slate-500'
+                  } ${onStepClick ? 'group-hover:text-slate-200' : ''}`}>
+                    {state}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-8 animate-fadeIn">
       {/* ส่วนหัวหน้าเพจ */}
@@ -792,40 +862,7 @@ export default function BudgetsPage() {
           {/* Stepper Status Indicator */}
           <div className="py-4">
             <h3 className="text-xs font-semibold text-slate-300 mb-4 uppercase tracking-wider">ขั้นตอนการจัดทำและติดตามโครงการ</h3>
-            <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4 bg-slate-950/60 p-4 rounded-xl border border-slate-800/60">
-              {STEPPER_STATES.map((state, idx) => {
-                const isCurrent = selectedBudget.status === state;
-                const isPassed = STEPPER_STATES.indexOf(selectedBudget.status) >= idx;
-                
-                return (
-                  <div key={state} className="flex-1 flex items-center gap-3">
-                    <div className="flex items-center gap-2">
-                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${
-                        isCurrent 
-                          ? 'bg-indigo-600 text-white animate-pulse' 
-                          : isPassed 
-                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
-                            : 'bg-slate-900 text-slate-500 border border-slate-800'
-                      }`}>
-                        {idx + 1}
-                      </div>
-                      <span className={`text-[10px] font-medium ${
-                        isCurrent 
-                          ? 'text-indigo-400 font-bold' 
-                          : isPassed 
-                            ? 'text-slate-200' 
-                            : 'text-slate-500'
-                      }`}>
-                        {state}
-                      </span>
-                    </div>
-                    {idx < STEPPER_STATES.length - 1 && (
-                      <div className="hidden lg:block flex-1 h-[1px] bg-slate-800" />
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+            {renderStepper(selectedBudget.status)}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -1111,27 +1148,9 @@ export default function BudgetsPage() {
             </div>
 
             {/* Stepper Status in Form (Clickable) */}
-            <div className="px-6 py-4 bg-slate-950/60 border-b border-slate-800 flex flex-wrap gap-2 items-center justify-between">
-              <span className="text-[10px] text-slate-400 uppercase font-semibold">ขั้นตอนโครงการ (คลิกเพื่อปรับ):</span>
-              <div className="flex flex-wrap gap-1.5">
-                {STEPPER_STATES.map((state) => {
-                  const isActive = formData.status === state;
-                  return (
-                    <button
-                      key={state}
-                      type="button"
-                      onClick={() => setFormData((prev: any) => ({ ...prev, status: state }))}
-                      className={`px-2.5 py-1 rounded-lg text-[9px] font-semibold border transition-all cursor-pointer ${
-                        isActive 
-                          ? 'bg-indigo-600 border-indigo-500 text-white shadow-md shadow-indigo-600/10' 
-                          : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
-                      }`}
-                    >
-                      {state}
-                    </button>
-                  );
-                })}
-              </div>
+            <div className="px-6 py-4 bg-slate-950/60 border-b border-slate-800">
+              <span className="text-[10px] text-slate-400 uppercase font-semibold block mb-2">ขั้นตอนโครงการ (คลิกที่ปุ่มวงกลมเพื่อปรับสเตตัส):</span>
+              {renderStepper(formData.status, (state) => setFormData((prev: any) => ({ ...prev, status: state })))}
             </div>
 
             {/* Tabs */}
