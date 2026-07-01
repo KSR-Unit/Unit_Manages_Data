@@ -1220,57 +1220,115 @@ export default function JusticeFundPage() {
           <div id="print-document-content">
 
           {/* DOCUMENT 1: KTH4 (แบบ กทย.4) */}
+          {/* DOCUMENT 1: KTH4 (แบบ กทย.4) */}
           {activePrintDoc === 'kth4' && (
-            <div className="space-y-6 text-sm text-slate-800 leading-loose">
+            <div className="space-y-6 text-sm text-slate-800 leading-loose max-w-3xl mx-auto font-serif">
               <div className="text-right font-bold text-xs uppercase text-slate-500">แบบ กทย.4</div>
               <div className="text-center space-y-1.5 border-b pb-4">
                 <h2 className="text-lg font-bold">แบบคำขอรับความช่วยเหลือเงินกองทุนยุติธรรม</h2>
                 <h3 className="text-sm font-semibold">กรณีการสนับสนุนโครงการให้ความรู้ทางกฎหมายแก่ประชาชน</h3>
               </div>
 
+              {/* ส่วนที่ 1 ข้อมูลทั่วไป */}
               <div className="space-y-4">
-                <h4 className="font-bold text-slate-900 border-b pb-1 text-xs">ส่วนที่ 1 ข้อมูลทั่วไปของผู้ขอรับความช่วยเหลือ</h4>
+                <h4 className="font-bold text-slate-900 border-b pb-1 text-xs uppercase tracking-wider">ส่วนที่ 1 ข้อมูลทั่วไปของผู้ขอรับความช่วยเหลือ</h4>
                 
-                <div className="grid grid-cols-12 gap-2 text-xs">
-                  <div className="col-span-12">
-                    <span className="font-semibold text-slate-900">1.1 ชื่อผู้เสนอโครงการ (ภาษาไทย):</span> <span>{formData.proposer_name}</span>
+                <div className="space-y-3 text-xs font-sans text-slate-700">
+                  <div>
+                    <span className="font-semibold text-slate-900">1.1 ชื่อผู้เสนอโครงการ (ภาษาไทย):</span> <span>{formData.proposer_name} (ประธานศูนย์)</span>
                   </div>
-                  <div className="col-span-12">
-                    <span className="font-semibold text-slate-900">ชื่อโครงการ:</span> <span>{formData.project_name}</span>
+                  <div className="pl-4">
+                    <span className="font-semibold text-slate-900">ชื่อศูนย์ไกล่เกลี่ยข้อพิพาทภาคประชาชน:</span> <span>{formData.office_address ? formData.office_address.replace(/เลขที่.*ตำบล|เลขที่.*แขวง/g, '').trim() : ''}</span>
                   </div>
-                  <div className="col-span-12">
-                    <span className="font-semibold text-slate-900">1.2 ประเภทผู้เสนอโครงการ:</span> <span>{formData.proposer_type}</span>
+                  <div>
+                    <span className="font-semibold text-slate-900">1.2 ประเภทผู้เสนอโครงการ:</span>
+                    <div className="grid grid-cols-2 gap-1.5 pl-4 mt-1">
+                      <div>[ ] บุคคลธรรมดา</div>
+                      <div>[ ] คณะบุคคล</div>
+                      <div>[ ] นิติบุคคล</div>
+                      <div>[ ] องค์กรเอกชน</div>
+                      <div>[ ] หน่วยงานของรัฐ</div>
+                      <div>[ ] สถานศึกษา</div>
+                      <div className="col-span-2 font-semibold text-indigo-600">[✓] อื่นๆ. ศูนย์ไกล่เกลี่ยข้อพิพาทภาคประชาชน</div>
+                    </div>
                   </div>
-                  <div className="col-span-12">
+                  <div>
                     <span className="font-semibold text-slate-900">1.3 ที่ตั้งสำนักงาน/ที่อยู่ (พร้อมแผนที่):</span> <span>{formData.office_address}</span>
                   </div>
-                  <div className="col-span-6">
-                    <span className="font-semibold text-slate-900">1.4 ชื่อผู้ประสานงานโครงการ:</span> <span>{formData.coordinator_name}</span>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <span className="font-semibold text-slate-900">1.4 ชื่อผู้ประสานงานโครงการ:</span> <span>{formData.coordinator_name}</span>
+                    </div>
+                    <div>
+                      <span className="font-semibold text-slate-900">โทรศัพท์/มือถือ:</span> <span>{formData.coordinator_phone}</span>
+                    </div>
                   </div>
-                  <div className="col-span-6">
-                    <span className="font-semibold text-slate-900">โทรศัพท์/มือถือ:</span> <span>{formData.coordinator_phone}</span>
+                  <div>
+                    <span className="font-semibold text-slate-900">อีเมลติดต่อผู้ประสานงาน:</span> <span>{formData.coordinator_email}</span>
                   </div>
-                  <div className="col-span-12">
-                    <span className="font-semibold text-slate-900">อีเมลติดต่อ:</span> <span>{formData.coordinator_email}</span>
-                  </div>
-                  <div className="col-span-12">
+                  <div>
                     <span className="font-semibold text-slate-900">1.5 วัตถุประสงค์ที่ขอรับความช่วยเหลือ:</span>
-                    <p className="border p-2 bg-slate-50 rounded mt-1 font-sans leading-relaxed">{formData.aim}</p>
+                    <p className="border p-2 bg-slate-50 rounded mt-1 leading-relaxed text-slate-600">เพื่อส่งเสริมและสนับสนุนให้ประชาชนเกิดความรู้ความเข้าใจในสิทธิและเสรีภาพการไกล่เกลี่ยระงับข้อพิพาทภาคประชาชน และได้เข้าถึงกระบวนการยุติธรรม อย่างทั่วถึงเป็นธรรมเพิ่มมากยิ่งขึ้น</p>
                   </div>
-                  <div className="col-span-12">
+                  <div>
                     <span className="font-semibold text-slate-900">1.6 กิจกรรมหรือโครงการที่ดำเนินการอยู่ในปัจจุบัน (โดยสรุป):</span>
-                    <p className="border p-2 bg-slate-50 rounded mt-1 font-sans leading-relaxed">{formData.current_activities}</p>
+                    <p className="border p-2 bg-slate-50 rounded mt-1 leading-relaxed text-slate-600">เป็นศูนย์ให้บริการรับคำร้องและไกล่เกลี่ยข้อพิพาทในระดับชุมชนตำบล ตลอดจนจัดประชุมและจัดกิจกรรมเผยแพร่ความรู้ด้านกฎหมายทั่วไปแก่ประชาชน</p>
                   </div>
-                  <div className="col-span-12">
+                  <div>
                     <span className="font-semibold text-slate-900">1.7 ผลงานในรอบ 1 ปีที่ผ่านมา (โดยสรุป):</span>
-                    <p className="border p-2 bg-slate-50 rounded mt-1 font-sans leading-relaxed">{formData.past_achievements}</p>
+                    <p className="border p-2 bg-slate-50 rounded mt-1 leading-relaxed text-slate-600">{formData.past_achievements || 'ดำเนินการจัดไกล่เกลี่ยคดีความสำเร็จรวมถึงการประสานงานช่วยเหลือประชาชนด้านกฎหมายเบื้องต้นในชุมชน'}</p>
+                  </div>
+                  <div>
+                    <span className="font-semibold text-slate-900">1.8 แหล่งความช่วยเหลือที่ได้รับในปัจจุบัน (ทั้งในและต่างประเทศ):</span>
+                    <p className="pl-4 text-slate-500 font-light">1. ............................................................ จำนวน .......................... บาท</p>
+                    <p className="pl-4 text-slate-500 font-light">2. ............................................................ จำนวน .......................... บาท</p>
                   </div>
                 </div>
               </div>
 
+              {/* ส่วนที่ 2 รายละเอียดข้อมูลโครงการ */}
+              <div className="space-y-4 pt-6 border-t border-slate-200">
+                <h4 className="font-bold text-slate-900 border-b pb-1 text-xs uppercase tracking-wider">ส่วนที่ 2 รายละเอียดข้อมูลโครงการเพื่อขอรับความช่วยเหลือเงินกองทุน</h4>
+                
+                <div className="space-y-3 text-xs font-sans text-slate-700">
+                  <div>
+                    <span className="font-semibold text-slate-900">2.1 ชื่อโครงการ:</span> <span className="font-medium text-slate-900">{formData.project_name}</span>
+                  </div>
+                  <div>
+                    <span className="font-semibold text-slate-900">2.2 ลักษณะโครงการที่ขอรับความช่วยเหลือเงินกองทุน:</span>
+                    <div className="space-y-1.5 pl-4 mt-1">
+                      <div className="font-semibold text-indigo-600">[✓] โครงการเผยแพร่หรือการอบรมความรู้ทางกฎหมายแก่ประชาชน เพื่อประโยชน์ในการป้องกันอาชญากรรมการคุ้มครองสิทธิและเสรีภาพ และการเข้าถึงกระบวนการยุติธรรม</div>
+                      <div>[ ] โครงการที่เสริมสร้างการมีส่วนร่วมของประชาชน เกี่ยวกับการส่งเสริมสิทธิและหน้าที่ แก้ไขปัญหาเรื่องการละเมิดสิทธิเสรีภาพ และสิทธิมนุษยชน</div>
+                      <div>[ ] โครงการให้ความรู้ทางกฎหมายแก่ประชาชนที่เป็นนวัตกรรมใหม่</div>
+                      <div>[ ] โครงการให้ความรู้ทางกฎหมายแก่ประชาชนอื่นๆ (โปรดระบุ)................................................</div>
+                    </div>
+                  </div>
+                  <div>
+                    <span className="font-semibold text-slate-900">2.3 รายชื่อบุคคลที่น่าเชื่อถือที่อธิบายผลงานของผู้ขอรับความช่วยเหลือย้อนหลังได้ (จำนวน 2 ท่าน):</span>
+                    <div className="space-y-2 pl-4 mt-1">
+                      <div>(1) ชื่อ: <span className="font-semibold">{referenceData[0]?.name}</span> ตำแหน่ง: {referenceData[0]?.position} สังกัด: {referenceData[0]?.office} โทร: {referenceData[0]?.contact}</div>
+                      <div>(2) ชื่อ: <span className="font-semibold">{referenceData[1]?.name}</span> ตำแหน่ง: {referenceData[1]?.position} สังกัด: {referenceData[1]?.office} โทร: {referenceData[1]?.contact}</div>
+                    </div>
+                  </div>
+                  <div>
+                    <span className="font-semibold text-slate-900">2.4 วัตถุประสงค์โครงการ:</span>
+                    <p className="border p-2 bg-slate-50 rounded mt-1 leading-relaxed text-slate-600">{formData.aim}</p>
+                  </div>
+                  <div>
+                    <span className="font-semibold text-slate-900">2.5 ผลที่คาดว่าจะได้รับ:</span>
+                    <p className="border p-2 bg-slate-50 rounded mt-1 leading-relaxed text-slate-600">ประชาชนเกิดความรู้ความเข้าใจในสิทธิและเสรีภาพ และการไกล่เกลี่ยระงับข้อพิพาท ได้รับการคุ้มครองสิทธิและเสรีภาพ การอำนวยความยุติธรรม อย่างทั่วถึงและเท่าเทียม ลดความเหลื่อมล้ำในการเข้าถึงความเป็นธรรมในสังคม โดยใช้สันติวิธีในการแก้ไขปัญหาของชุมชน ลดปริมาณคดีขึ้นสู่ศาล ลดภาระงานราชการ</p>
+                  </div>
+                  <div>
+                    <span className="font-semibold text-slate-900">2.6 กลุ่มเป้าหมาย:</span>
+                    <p className="pl-4">{formData.target_group} จำนวน {formData.target_count} คน</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* ส่วนท้ายและประธานลงชื่อ */}
               <div className="pt-10 flex justify-end text-center">
                 <div className="w-[300px] space-y-8 text-xs font-sans">
-                  <p>ลงชื่อ.......................................................... ผู้ขอรับความช่วยเหลือ</p>
+                  <p>ลงชื่อ.......................................................... ผู้เสนอขอรับความช่วยเหลือ</p>
                   <p>( {formData.proposer_name} )</p>
                   <p>ประธานศูนย์ไกล่เกลี่ยข้อพิพาทภาคประชาชน</p>
                   <p>วันที่ {new Date().toLocaleDateString('th-TH')}</p>
