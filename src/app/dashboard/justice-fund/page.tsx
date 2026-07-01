@@ -336,10 +336,14 @@ export default function JusticeFundPage() {
             .text-slate-700 {
               color: #334155;
             }
+            @page {
+              size: A4;
+              margin: 20mm 15mm 20mm 15mm;
+            }
             @media print {
               body {
                 padding: 0;
-                margin: 20mm 15mm 20mm 15mm;
+                margin: 0;
               }
             }
           </style>
