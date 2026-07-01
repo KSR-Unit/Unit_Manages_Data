@@ -751,16 +751,14 @@ export default function JusticeFundPage() {
               <span>3. กำหนดการ & งบประมาณ</span>
             </button>
 
-            {editingId && (
-              <button
-                type="button"
-                onClick={() => setActiveTab('print-center')}
-                className="w-full text-left px-3 py-2.5 rounded-lg text-xs bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 transition-all flex items-center gap-2.5 font-semibold hover:bg-emerald-500/20 mt-4"
-              >
-                <Printer className="h-4 w-4" />
-                <span>🖨️ ศูนย์ออกเอกสารพิมพ์ (7 ฉบับ)</span>
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => setActiveTab('print-center')}
+              className="w-full text-left px-3 py-2.5 rounded-lg text-xs bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 transition-all flex items-center gap-2.5 font-semibold hover:bg-emerald-500/20 mt-4"
+            >
+              <Printer className="h-4 w-4" />
+              <span>🖨️ ศูนย์ออกเอกสารพิมพ์ (7 ฉบับ)</span>
+            </button>
           </div>
 
           {/* Form fields Scroll area */}
