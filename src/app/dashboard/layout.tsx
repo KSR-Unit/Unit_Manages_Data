@@ -19,6 +19,8 @@ export default function DashboardLayout({
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [reportsOpen, setReportsOpen] = useState(true);
+  const [budgetsOpen, setBudgetsOpen] = useState(true);
+  const [mediationOpen, setMediationOpen] = useState(true);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -46,16 +48,25 @@ export default function DashboardLayout({
   const currentRole = profile?.role || 'user';
   const roleBadge = roleLabels[currentRole];
 
+  // 1. หมวดรายงานข้อมูลประจำเดือนทั่วไป
   const reportModules = [
     { name: 'การประชุม', path: '/dashboard/meetings', icon: Calendar },
     { name: 'แผนงาน', path: '/dashboard/plans', icon: FileText },
     { name: 'กิจกรรม', path: '/dashboard/activities', icon: Compass },
     { name: 'การอบรม', path: '/dashboard/trainings', icon: BookOpen },
-    { name: 'งบประมาณทั่วไป', path: '/dashboard/budgets', icon: FileText },
-    { name: 'กองทุนยุติธรรม (กทย.4)', path: '/dashboard/justice-fund', icon: FileText },
-    { name: 'ไกล่เกลี่ย พ.ร.บ. 2562', path: '/dashboard/ems_reports', icon: Shield },
-    { name: 'กฎหมายอื่น', path: '/dashboard/other_laws_reports', icon: FileText },
     { name: 'รายงานไม่มีผลงาน', path: '/dashboard/zero_reports', icon: AlertTriangle },
+  ];
+
+  // 2. หมวดงบประมาณโครงการ
+  const budgetModules = [
+    { name: 'ขอเงินกองทุนยุติธรรม (กทย.4)', path: '/dashboard/justice-fund', icon: FileText },
+    { name: 'ของบประมาณอื่นๆ', path: '/dashboard/budgets', icon: FileText },
+  ];
+
+  // 3. หมวดรายงานการไกล่เกลี่ยข้อพิพาท
+  const mediationModules = [
+    { name: 'ตาม พ.ร.บ.ไกล่เกลี่ย 2562', path: '/dashboard/ems_reports', icon: Shield },
+    { name: 'ตามกฎหมายอื่น', path: '/dashboard/other_laws_reports', icon: FileText },
   ];
 
   return (
@@ -108,7 +119,7 @@ export default function DashboardLayout({
         </div>
 
         {/* Navigation Links */}
-        <nav className="flex-1 space-y-1 px-4 py-6 overflow-y-auto">
+        <nav className="flex-1 space-y-2.5 px-4 py-6 overflow-y-auto">
           {/* Main Dashboard Link */}
           <Link 
             href="/dashboard"
@@ -127,18 +138,94 @@ export default function DashboardLayout({
           <div className="space-y-1">
             <button
               onClick={() => setReportsOpen(!reportsOpen)}
-              className="w-full flex items-center justify-between px-4 py-3 text-slate-400 hover:bg-slate-800/50 hover:text-white rounded-xl text-sm font-medium transition-all"
+              className="w-full flex items-center justify-between px-4 py-2.5 text-slate-400 hover:bg-slate-800/50 hover:text-white rounded-xl text-xs font-medium transition-all"
             >
               <div className="flex items-center gap-3">
-                <FileText className="h-5 w-5" />
+                <FileText className="h-4.5 w-4.5 text-indigo-400" />
                 <span>รายงานข้อมูลประจำเดือน</span>
               </div>
-              <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${reportsOpen ? 'rotate-180' : ''}`} />
+              <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${reportsOpen ? 'rotate-180' : ''}`} />
             </button>
 
             {reportsOpen && (
               <div className="pl-4 space-y-1 animate-fadeIn">
                 {reportModules.map((m) => {
+                  const Icon = m.icon;
+                  const isActive = pathname === m.path;
+                  return (
+                    <Link
+                      key={m.path}
+                      href={m.path}
+                      onClick={() => setSidebarOpen(false)}
+                      className={`flex items-center gap-3 px-4 py-2.5 rounded-lg text-xs font-medium transition-all duration-200 ${
+                        isActive
+                          ? 'bg-slate-800 text-indigo-400 border-l-2 border-indigo-500 font-semibold'
+                          : 'text-slate-400 hover:bg-slate-800/30 hover:text-white'
+                      }`}
+                    >
+                      <Icon className="h-4 w-4 shrink-0" />
+                      <span>{m.name}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* 2. งบประมาณโครงการ */}
+          <div className="space-y-1">
+            <button
+              onClick={() => setBudgetsOpen(!budgetsOpen)}
+              className="w-full flex items-center justify-between px-4 py-2.5 text-slate-400 hover:bg-slate-800/50 hover:text-white rounded-xl text-xs font-medium transition-all"
+            >
+              <div className="flex items-center gap-3">
+                <FileText className="h-4.5 w-4.5 text-indigo-400" />
+                <span>งบประมาณ</span>
+              </div>
+              <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${budgetsOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+            {budgetsOpen && (
+              <div className="pl-4 space-y-1 animate-fadeIn">
+                {budgetModules.map((m) => {
+                  const Icon = m.icon;
+                  const isActive = pathname === m.path;
+                  return (
+                    <Link
+                      key={m.path}
+                      href={m.path}
+                      onClick={() => setSidebarOpen(false)}
+                      className={`flex items-center gap-3 px-4 py-2.5 rounded-lg text-xs font-medium transition-all duration-200 ${
+                        isActive
+                          ? 'bg-slate-800 text-indigo-400 border-l-2 border-indigo-500 font-semibold'
+                          : 'text-slate-400 hover:bg-slate-800/30 hover:text-white'
+                      }`}
+                    >
+                      <Icon className="h-4 w-4 shrink-0" />
+                      <span>{m.name}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* 3. รายงานการไกล่เกลี่ย */}
+          <div className="space-y-1">
+            <button
+              onClick={() => setMediationOpen(!mediationOpen)}
+              className="w-full flex items-center justify-between px-4 py-2.5 text-slate-400 hover:bg-slate-800/50 hover:text-white rounded-xl text-xs font-medium transition-all"
+            >
+              <div className="flex items-center gap-3">
+                <Shield className="h-4.5 w-4.5 text-indigo-400" />
+                <span>รายงานการไกล่เกลี่ย</span>
+              </div>
+              <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${mediationOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+            {mediationOpen && (
+              <div className="pl-4 space-y-1 animate-fadeIn">
+                {mediationModules.map((m) => {
                   const Icon = m.icon;
                   const isActive = pathname === m.path;
                   return (

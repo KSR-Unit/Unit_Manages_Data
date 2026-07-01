@@ -9,7 +9,8 @@ const CATEGORY_TITLES: Record<string, string> = {
   plans: 'แผนการดำเนินงาน',
   activities: 'การจัดกิจกรรม',
   trainings: 'การอบรมและพัฒนาความรู้',
-  budgets: 'การเบิกจ่ายงบประมาณ',
+  budgets: 'ของบประมาณอื่นๆ',
+  justice_fund: 'ขอเงินกองทุนยุติธรรม (กทย.4)',
   ems_reports: 'รายงานข้อพิพาทไกล่เกลี่ย พ.ร.บ. 2562',
   other_laws_reports: 'รายงานข้อพิพาทกฎหมายอื่นๆ',
   zero_reports: 'รายงานไม่มีผลการดำเนินงาน',
@@ -22,6 +23,7 @@ const CATEGORY_PATHS: Record<string, string> = {
   activities: '/dashboard/activities',
   trainings: '/dashboard/trainings',
   budgets: '/dashboard/budgets',
+  justice_fund: '/dashboard/justice-fund',
   ems_reports: '/dashboard/ems_reports',
   other_laws_reports: '/dashboard/other_laws_reports',
   zero_reports: '/dashboard/zero_reports',
@@ -124,6 +126,28 @@ const SCHEMAS: Record<string, { properties: Record<string, any>; required: strin
     },
     required: ['project_name', 'approval_date', 'budget_amount'],
   },
+  justice_fund: {
+    properties: {
+      project_name: { type: 'string', description: 'ชื่อโครงการที่ต้องการเสนอขอเงินกองทุนยุติธรรม' },
+      proposer_name: { type: 'string', description: 'ชื่อประธานศูนย์หรือผู้เสนอโครงการ' },
+      office_address: { type: 'string', description: 'ที่ตั้งสำนักงานของหน่วยงานหรือศูนย์ไกล่เกลี่ย' },
+      coordinator_name: { type: 'string', description: 'ชื่อผู้ประสานงานหลักของโครงการ' },
+      coordinator_phone: { type: 'string', description: 'เบอร์โทรศัพท์ติดต่อของผู้ประสานงาน' },
+      coordinator_email: { type: 'string', description: 'อีเมลติดต่อของผู้ประสานงาน' },
+      aim: { type: 'string', description: 'วัตถุประสงค์หลักของโครงการเสนอของบกองทุน' },
+      past_achievements: { type: 'string', description: 'สรุปผลการทำงาน/ผลงานย้อนหลัง 1 ปี' },
+      project_character: { type: 'string', description: 'ลักษณะหรือความเป็นมาของโครงการ' },
+      rationale: { type: 'string', description: 'หลักการและเหตุผลความจำเป็นในการจัดโครงการอบรม' },
+      target_group: { type: 'string', description: 'กลุ่มเป้าหมายผู้ที่จะได้รับการเผยแพร่ความรู้ทางกฎหมาย' },
+      target_count: { type: 'number', description: 'จำนวนเป้าหมายผู้เข้ารับการอบรม (คน)' },
+      location: { type: 'string', description: 'สถานที่ที่ใช้วางแผนจัดโครงการฝึกอบรมสัมมนา' },
+      start_date: { type: 'string', description: 'วันที่เริ่มต้นจัดฝึกอบรมโครงการ รูปแบบ YYYY-MM-DD' },
+      end_date: { type: 'string', description: 'วันที่จัดเสร็จสิ้นโครงการอบรม รูปแบบ YYYY-MM-DD' },
+      meeting_date: { type: 'string', description: 'วันที่จัดการประชุมเห็นชอบโครงการของคณะทำงาน รูปแบบ YYYY-MM-DD' },
+      meeting_resolution: { type: 'string', description: 'มติที่ประชุมเห็นชอบในรายงานการประชุม' }
+    },
+    required: ['project_name', 'proposer_name', 'start_date']
+  },
   ems_reports: {
     properties: {
       case_no: { type: 'string', description: 'เลขคำร้อง (เช่น กก.01/2569)' },
@@ -201,16 +225,17 @@ export async function POST(request: Request) {
     // ==========================================
     // ขั้นตอนที่ 1: การจำแนกประเภท (Classification)
     // ==========================================
-    const classificationPrompt = `คุณเป็นระบบจำแนกหัวข้อรายงานภาษาไทยอัจฉริยะ ทำหน้าที่ตรวจสอบคำพูดเล่าเรื่อง (Voice Dictation) หรือพิมพ์รายงานของผู้ใช้ และระบุว่าเรื่องเล่านี้สอดคล้องกับหมวดหมู่รายงานใดใน 8 หมวดหมู่นี้มากที่สุด:
+    const classificationPrompt = `คุณเป็นระบบจำแนกหัวข้อรายงานภาษาไทยอัจฉริยะ ทำหน้าที่ตรวจสอบคำพูดเล่าเรื่อง (Voice Dictation) หรือพิมพ์รายงานของผู้ใช้ และระบุว่าเรื่องเล่านี้สอดคล้องกับหมวดหมู่รายงานใดใน 9 หมวดหมู่นี้มากที่สุด:
 
 1. "meetings" (การประชุมคณะทำงาน): หากพูดถึง การเชิญประชุม, จัดประชุมคณะทำงาน, มีวาระการประชุม, แต่งตั้งประธาน/เลขานุการประชุม, มติที่ประชุม
 2. "plans" (แผนการดำเนินงาน/โครงการ): หากพูดถึง แผนงาน, โครงการประจำปี, ไทม์ไลน์รายปี, การทำโครงการย่อยตลอดปี, งบประมาณโครงการหลัก
 3. "activities" (การจัดกิจกรรม): หากพูดถึง กิจกรรมลงพื้นที่, จัดกิจกรรมทำแผ่นพับเผยแพร่กฎหมาย, ลงเวทีชุมชน, กิจกรรมส่งเสริมสิทธิมนุษยชน
 4. "trainings" (การอบรมและพัฒนาความรู้): หากพูดถึง การจัดฝึกอบรม, สัมมนาพัฒนาศักยภาพผู้ไกล่เกลี่ย, หลักสูตรฝึกอบรม, ใบประกาศ/เกียรติบัตรอบรม
-5. "budgets" (การเบิกจ่ายงบประมาณ): หากพูดถึง ขอเบิกเงินงบประมาณ, อนุมัติเบิกจ่ายงบโครงการ, ได้รับจัดสรรงบประมาณสะสม, ส่งคืนเงินงบประมาณ
-6. "ems_reports" (รายงานข้อพิพาทไกล่เกลี่ย พ.ร.บ. 2562): หากพูดถึง คดีไกล่เกลี่ยตาม พ.ร.บ. ไกล่เกลี่ย 2562, ข้อพิพาทไกล่เกลี่ย, ตกลงกันได้/ไม่ได้, เลขคำร้องคดีไกล่เกลี่ย, ทุนทรัพย์ไกล่เกลี่ยคดีความ
-7. "other_laws_reports" (รายงานข้อพิพาทกฎหมายอื่นๆ): หากพูดถึง ข้อพิพาทกฎหมายทั่วไปของชาวบ้าน เช่น ข้อพิพาทมรดกครอบครัว, ปัญหากระทบกระทั่ง, การให้คำแนะนำข้อกฎหมายชุมชนเบื้องต้น, ส่งต่อหน่วยงานอื่น
-8. "zero_reports" (รายงานไม่มีผลการดำเนินงาน): หากพูดถึง การรายงานว่าในรอบเดือนนี้ไม่มีผลการปฏิบัติงานใดๆ เลย, เดือนนี้ไม่มีกิจกรรม/ประชุม/ไกล่เกลี่ย, รายงานศูนย์ว่างเปล่า, Zero Report
+5. "budgets" (ของบประมาณอื่นๆ): หากพูดถึง ขอเบิกเงินงบประมาณทั่วไป, อนุมัติเบิกจ่ายงบประมาณอื่นๆ ที่ไม่ใช่เงินกองทุนยุติธรรม, การเงินทั่วไป
+6. "justice_fund" (ขอเงินกองทุนยุติธรรม/กทย.4): หากพูดถึง ขอเสนอเงินกองทุนยุติธรรม, ยื่นแบบ กทย.4, ของบประมาณจากกองทุนยุติธรรม, การเสนออบรมของบกองทุนยุติธรรม
+7. "ems_reports" (รายงานข้อพิพาทไกล่เกลี่ย พ.ร.บ. 2562): หากพูดถึง คดีไกล่เกลี่ยตาม พ.ร.บ. ไกล่เกลี่ย 2562, ข้อพิพาทไกล่เกลี่ย, ตกลงกันได้/ไม่ได้, เลขคำร้องคดีไกล่เกลี่ย, ทุนทรัพย์ไกล่เกลี่ยคดีความ
+8. "other_laws_reports" (รายงานข้อพิพาทกฎหมายอื่นๆ): หากพูดถึง ข้อพิพาทกฎหมายทั่วไปของชาวบ้าน เช่น ข้อพิพาทมรดกครอบครัว, ปัญหากระทบกระทั่ง, การให้คำแนะนำข้อกฎหมายชุมชนเบื้องต้น, ส่งต่อหน่วยงานอื่น
+9. "zero_reports" (รายงานไม่มีผลการดำเนินงาน): หากพูดถึง การรายงานว่าในรอบเดือนนี้ไม่มีผลการปฏิบัติงานใดๆ เลย, เดือนนี้ไม่มีกิจกรรม/ประชุม/ไกล่เกลี่ย, รายงานศูนย์ว่างเปล่า, Zero Report
 
 เนื้อความของผู้ใช้:
 "${story.trim()}"
@@ -228,7 +253,7 @@ export async function POST(request: Request) {
           properties: {
             category: {
               type: 'string',
-              enum: ['meetings', 'plans', 'activities', 'trainings', 'budgets', 'ems_reports', 'other_laws_reports', 'zero_reports'],
+              enum: ['meetings', 'plans', 'activities', 'trainings', 'budgets', 'justice_fund', 'ems_reports', 'other_laws_reports', 'zero_reports'],
               description: 'หมวดหมู่ที่ตรวจพบ'
             }
           },

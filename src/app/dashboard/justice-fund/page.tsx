@@ -6,9 +6,11 @@ import { supabase } from '@/lib/supabase';
 import { 
   Plus, Edit, Trash2, Search, ArrowLeft, Printer, FileText, 
   CheckCircle, AlertTriangle, Loader2, Save, X, RefreshCw, 
-  Sparkles, Download, FileSpreadsheet, PlusCircle, Calendar, ShieldCheck
+  Sparkles, Download, FileSpreadsheet, PlusCircle, Calendar, ShieldCheck,
+  Mic, MicOff
 } from 'lucide-react';
 import Swal from 'sweetalert2';
+import { useSpeechRecognition } from '@/hooks/useSpeechRecognition';
 
 // กำหนดการเริ่มต้นแบบมาตรฐานของกองทุน
 const DEFAULT_SCHEDULE = [
@@ -79,8 +81,140 @@ export default function JusticeFundPage() {
   const [expenseData, setExpenseData] = useState<any[]>(DEFAULT_EXPENSES);
   const [referenceData, setReferenceData] = useState<any[]>(DEFAULT_REFERENCES);
 
+  // AI Voice states
+  const [aiStoryText, setAiStoryText] = useState('');
+  const [aiParsing, setAiParsing] = useState(false);
+  const [highlightFields, setHighlightFields] = useState<Record<string, boolean>>({});
+
+  const { isListening: isVoiceListening, startListening: startVoiceListening, stopListening: stopVoiceListening } = useSpeechRecognition({
+    onResult: (text, isFinal) => {
+      if (isFinal) {
+        setAiStoryText(prev => prev ? prev + ' ' + text : text);
+      }
+    }
+  });
+
+  const handleAIParsing = async () => {
+    if (!aiStoryText.trim()) return;
+    setAiParsing(true);
+    try {
+      const res = await fetch('/api/ai/parse-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          story: aiStoryText,
+          fieldsSchema: [
+            { name: 'project_name', label: 'ชื่อโครงการ' },
+            { name: 'proposer_name', label: 'ผู้เสนอโครงการ' },
+            { name: 'office_address', label: 'ที่ตั้งสำนักงาน' },
+            { name: 'coordinator_name', label: 'ผู้ประสานงานหลัก' },
+            { name: 'coordinator_phone', label: 'เบอร์ติดต่อผู้ประสานงาน' },
+            { name: 'coordinator_email', label: 'อีเมลผู้ประสานงาน' },
+            { name: 'aim', label: 'วัตถุประสงค์หลัก' },
+            { name: 'past_achievements', label: 'สรุปผลงานย้อนหลัง 1 ปี' },
+            { name: 'project_character', label: 'ลักษณะโครงการ' },
+            { name: 'rationale', label: 'หลักการและเหตุผลความจำเป็น' },
+            { name: 'target_group', label: 'กลุ่มเป้าหมาย' },
+            { name: 'target_count', label: 'จำนวนเป้าหมาย (คน)' },
+            { name: 'location', label: 'สถานที่ดำเนินโครงการ' },
+            { name: 'start_date', label: 'วันที่เริ่มต้นจัดโครงการ' },
+            { name: 'end_date', label: 'วันที่จัดเสร็จสิ้นโครงการ' },
+            { name: 'meeting_date', label: 'วันที่จัดการประชุมเห็นชอบโครงการ' },
+            { name: 'meeting_resolution', label: 'มติที่ประชุมเห็นชอบ' }
+          ]
+        })
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || 'AI Failed to parse');
+
+      const parsedData = result.data;
+      if (parsedData) {
+        setFormData((prev: any) => ({
+          ...prev,
+          ...parsedData
+        }));
+        
+        const highlights: Record<string, boolean> = {};
+        Object.keys(parsedData).forEach(k => {
+          highlights[k] = true;
+        });
+        setHighlightFields(highlights);
+        setTimeout(() => setHighlightFields({}), 5000);
+        setAiStoryText('');
+        
+        Swal.fire({
+          icon: 'success',
+          title: '🤖 ดึงข้อมูลเสียงสำเร็จ',
+          text: 'ดึงข้อมูลและกรอกช่องที่เกี่ยวข้องให้แล้ว เรียบร้อยครับ!',
+          timer: 2000,
+          showConfirmButton: false,
+          background: '#0f172a',
+          color: '#f8fafc'
+        });
+      }
+    } catch (err: any) {
+      console.error(err);
+      Swal.fire({
+        icon: 'error',
+        title: 'เกิดข้อผิดพลาด',
+        text: 'ไม่สามารถประมวลผลคำพูดได้: ' + err.message,
+        background: '#0f172a',
+        color: '#f8fafc'
+      });
+    } finally {
+      setAiParsing(false);
+    }
+  };
+
   useEffect(() => {
     fetchApplications();
+  }, [user, profile]);
+
+  useEffect(() => {
+    const pendingData = sessionStorage.getItem('ai_pending_autofill');
+    if (pendingData) {
+      try {
+        const { category, data } = JSON.parse(pendingData);
+        if (category === 'justice_fund') {
+          sessionStorage.removeItem('ai_pending_autofill');
+          setEditingId(null);
+          setView('form');
+          setActiveTab('info');
+          
+          setFormData((prev: any) => ({
+            ...prev,
+            project_name: data.project_name || prev.project_name,
+            proposer_name: data.proposer_name || prev.proposer_name,
+            office_address: data.office_address || prev.office_address,
+            coordinator_name: data.coordinator_name || prev.coordinator_name,
+            coordinator_phone: data.coordinator_phone || prev.coordinator_phone,
+            coordinator_email: data.coordinator_email || prev.coordinator_email,
+            aim: data.aim || prev.aim,
+            past_achievements: data.past_achievements || prev.past_achievements,
+            project_character: data.project_character || prev.project_character,
+            rationale: data.rationale || prev.rationale,
+            target_group: data.target_group || prev.target_group,
+            target_count: data.target_count !== undefined ? data.target_count : prev.target_count,
+            location: data.location || prev.location,
+            start_date: data.start_date || prev.start_date,
+            end_date: data.end_date || prev.end_date,
+            meeting_date: data.meeting_date || prev.meeting_date,
+            meeting_resolution: data.meeting_resolution || prev.meeting_resolution,
+          }));
+
+          Swal.fire({
+            icon: 'success',
+            title: '🤖 AI ป้อนข้อมูลให้คุณแล้ว',
+            text: 'ระบบได้กรอกข้อมูลที่ได้จากการวิเคราะห์เสียงพูดลงในฟอร์ม กทย.4 เรียบร้อยแล้ว กรุณาตรวจสอบและบันทึกข้อมูลครับ',
+            confirmButtonColor: '#4f46e5',
+            background: '#0f172a',
+            color: '#f8fafc'
+          });
+        }
+      } catch (e) {
+        console.error('Failed to parse pending autofill data:', e);
+      }
+    }
   }, [user, profile]);
 
   const fetchApplications = async () => {
@@ -439,6 +573,44 @@ export default function JusticeFundPage() {
 
           {/* Form fields Scroll area */}
           <div className="flex-1 p-6 overflow-y-auto">
+            {activeTab !== 'print-center' && (
+              <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800/80 mb-6 space-y-3">
+                <span className="text-[10px] text-slate-400 uppercase font-semibold flex items-center gap-1.5">
+                  <Sparkles className="h-3 w-3 text-indigo-400" />
+                  <span>บันทึกเสียงพูดถอดข้อมูลเสนอเงินกองทุน (AI Voice Assistant)</span>
+                </span>
+                <div className="flex gap-2">
+                  <textarea
+                    value={aiStoryText}
+                    onChange={(e) => setAiStoryText(e.target.value)}
+                    placeholder="พูดอธิบายโครงการหรือรายละเอียดคำขอ... เช่น เสนอโครงการอบรมกฎหมายประชาชน วันที่ 15 สิงหาคม 2569 ผู้ประสานงานหลักคือนายชูชาติ โทร 0812345678..."
+                    className="flex-1 bg-slate-900 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500/80 resize-y min-h-[60px] font-light leading-relaxed"
+                  />
+                  <div className="flex flex-col gap-2">
+                    <button
+                      type="button"
+                      onClick={isVoiceListening ? stopVoiceListening : startVoiceListening}
+                      className={`p-2.5 rounded-xl border transition-all flex items-center justify-center cursor-pointer ${
+                        isVoiceListening 
+                          ? 'bg-rose-600 border-rose-500 text-white animate-pulse' 
+                          : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      {isVoiceListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleAIParsing}
+                      disabled={aiParsing || !aiStoryText.trim()}
+                      className="px-3 py-2.5 bg-indigo-600 disabled:bg-slate-800 hover:bg-indigo-500 text-white text-[10px] font-semibold rounded-xl cursor-pointer transition-all"
+                    >
+                      {aiParsing ? <Loader2 className="h-4 w-4 animate-spin" /> : 'ดึงข้อมูล'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {activeTab === 'info' && (
               <div className="space-y-6">
                 <h3 className="text-sm font-semibold text-white border-b border-slate-800 pb-3 flex items-center gap-2">
@@ -453,7 +625,11 @@ export default function JusticeFundPage() {
                       type="text"
                       value={formData.proposer_name}
                       onChange={(e) => updateFormValue('proposer_name', e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-indigo-500/80"
+                      className={`w-full bg-slate-950 border rounded-xl px-3.5 py-2.5 text-xs text-slate-100 focus:outline-none transition-all ${
+                        highlightFields.proposer_name 
+                          ? 'border-indigo-400 ring-2 ring-indigo-500/20 bg-indigo-950/20 animate-pulse' 
+                          : 'border-slate-800 focus:border-indigo-500/80'
+                      }`}
                       placeholder="เช่น นายอุทัย ศรีสุข"
                     />
                   </div>
@@ -464,7 +640,11 @@ export default function JusticeFundPage() {
                       type="text"
                       value={formData.project_name}
                       onChange={(e) => updateFormValue('project_name', e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-indigo-500/80"
+                      className={`w-full bg-slate-950 border rounded-xl px-3.5 py-2.5 text-xs text-slate-100 focus:outline-none transition-all ${
+                        highlightFields.project_name 
+                          ? 'border-indigo-400 ring-2 ring-indigo-500/20 bg-indigo-950/20 animate-pulse' 
+                          : 'border-slate-800 focus:border-indigo-500/80'
+                      }`}
                       placeholder="ชื่อโครงการเต็มสำหรับการจัดส่งพิจารณา"
                     />
                   </div>
@@ -477,7 +657,11 @@ export default function JusticeFundPage() {
                       rows={2}
                       value={formData.office_address}
                       onChange={(e) => updateFormValue('office_address', e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-indigo-500/80"
+                      className={`w-full bg-slate-950 border rounded-xl px-3.5 py-2.5 text-xs text-slate-100 focus:outline-none transition-all ${
+                        highlightFields.office_address 
+                          ? 'border-indigo-400 ring-2 ring-indigo-500/20 bg-indigo-950/20 animate-pulse' 
+                          : 'border-slate-800 focus:border-indigo-500/80'
+                      }`}
                       placeholder="เลขที่ หมู่บ้าน ตำบล อำเภอ จังหวัด..."
                     />
                   </div>
