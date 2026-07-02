@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { useSpeechRecognition } from '@/hooks/useSpeechRecognition';
+import { generateDocx } from '@/utils/docxGenerator';
 
 // กำหนดการเริ่มต้นแบบมาตรฐานของกองทุน
 const DEFAULT_SCHEDULE = [
@@ -166,6 +167,104 @@ export default function JusticeFundPage() {
     }
   };
 
+  const handleDownloadDocx = async (docId: string) => {
+    try {
+      const docTemplates: Record<string, string> = {
+        kth4: 'แบบคำขอรับความช่วยเหลือเงินกองทุนยุติธรรม.docx',
+        proposal: 'รายละเอียดเสนอโครงการ 9 ข้อ.docx',
+        schedule: 'ตารางกำหนดการอบรม.docx',
+        expenses: 'ประมาณการค่าใช้จ่ายย่อย.docx',
+        cert: 'หนังสือรับรองการไม่ซ้ำซ้อนงบประมาณ.docx',
+        minutes: 'รายงานการประชุมคณะทำงานกองทุน.docx',
+        refs: 'หนังสือรับรองผลงาน.docx',
+      };
+      
+      const filename = docTemplates[docId];
+      if (!filename) return;
+
+      Swal.fire({
+        title: 'กำลังสร้างไฟล์...',
+        text: 'ระบบกำลังดึงข้อมูลและกรอกลงในไฟล์ Word เทมเพลต',
+        background: '#0f172a',
+        color: '#f8fafc',
+        allowOutsideClick: false,
+        didOpen: () => {
+          Swal.showLoading();
+        }
+      });
+      
+      const docxData = {
+        project_name: formData.project_name || '',
+        proposer_name: formData.proposer_name || '',
+        proposer_type: 'ศูนย์ไกล่เกลี่ยข้อพิพาทภาคประชาชน',
+        office_address: formData.office_address || '',
+        coordinator_name: formData.coordinator_name || '',
+        coordinator_phone: formData.coordinator_phone || '',
+        coordinator_email: formData.coordinator_email || '',
+        aim: formData.aim || '',
+        rationale: formData.rationale || '',
+        target_group: formData.target_group || '',
+        target_count: formData.target_count || '',
+        location: formData.location || '',
+        start_date: formData.start_date ? formatDateToThai(formData.start_date) : '',
+        end_date: formData.end_date ? formatDateToThai(formData.end_date) : '',
+        committee_meeting_date: formData.committee_meeting_date ? formatDateToThai(formData.committee_meeting_date) : '',
+        total_cost: totalCost.toLocaleString('th-TH'),
+        total_cost_thai: thaiBahtText(totalCost),
+        current_activities: formData.current_activities || '',
+        past_achievements: formData.past_achievements || '',
+        current_date: formatDateToThai(new Date().toISOString().split('T')[0]),
+        
+        ref1_name: formData.references_info?.[0]?.name || '',
+        ref1_position: formData.references_info?.[0]?.position || '',
+        ref1_office: formData.references_info?.[0]?.office || '',
+        ref1_contact: formData.references_info?.[0]?.contact || '',
+        
+        ref2_name: formData.references_info?.[1]?.name || '',
+        ref2_position: formData.references_info?.[1]?.position || '',
+        ref2_office: formData.references_info?.[1]?.office || '',
+        ref2_contact: formData.references_info?.[1]?.contact || '',
+        
+        schedule_rows: scheduleData.map(row => ({
+          time: row.time || '',
+          topic: row.topic || '',
+          lecturer: row.lecturer || '',
+        })),
+        
+        expense_rows: expenseData.map(row => ({
+          item: row.item || '',
+          qty: row.qty || 0,
+          days: row.multiplier || 0,
+          unit_price: row.price ? row.price.toLocaleString('th-TH') : '0',
+          total: row.total ? row.total.toLocaleString('th-TH') : '0',
+        }))
+      };
+      
+      await generateDocx(`/templates/${filename}`, docxData, filename);
+      
+      Swal.close();
+      Swal.fire({
+        icon: 'success',
+        title: 'ดาวน์โหลดสำเร็จ!',
+        text: `ดาวน์โหลดไฟล์ ${filename} เรียบร้อยแล้ว`,
+        background: '#0f172a',
+        color: '#f8fafc',
+        timer: 2000,
+        showConfirmButton: false
+      });
+    } catch (err) {
+      console.error(err);
+      Swal.close();
+      Swal.fire({
+        icon: 'error',
+        title: 'ดาวน์โหลดล้มเหลว!',
+        text: 'ไม่พบไฟล์เทมเพลต Word ในระบบ หรือมีข้อผิดพลาดกรุณาลองใหม่อีกครั้ง',
+        background: '#0f172a',
+        color: '#f8fafc'
+      });
+    }
+  };
+
   const handlePrintDocument = () => {
     const printContent = document.getElementById('print-document-content')?.innerHTML;
     if (!printContent) return;
@@ -174,7 +273,7 @@ export default function JusticeFundPage() {
     if (!printWindow) return;
 
     const docTitles: Record<string, string> = {
-      kth4: 'แบบคำขอรับความช่วยเหลือเงินกองทุนยุติธรรม (กทย.4)',
+      kth4: 'แบบคำขอรับความช่วยเหลือเงินกองทุนยุติธรรม',
       proposal: 'รายละเอียดเสนอโครงการ 9 ข้อ',
       schedule: 'ตารางกำหนดการอบรม',
       expenses: 'ประมาณการค่าใช้จ่ายย่อย',
@@ -544,11 +643,73 @@ export default function JusticeFundPage() {
   // คำนวณราคายอดรวม
   const totalCost = expenseData.reduce((sum, item) => sum + (Number(item.total) || 0), 0);
 
+  // แปลงวันเป็นรูปแบบภาษาไทยเต็ม (เช่น 15 สิงหาคม 2569)
+  const formatDateToThai = (dateStr: string): string => {
+    if (!dateStr) return '';
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return dateStr;
+    const thMonths = [
+      'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+      'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
+    ];
+    return `${date.getDate()} ${thMonths[date.getMonth()]} ${date.getFullYear() + 543}`;
+  };
+
   // คำนวณข้อความตัวอักษรยอดเงินรวมภาษาไทย
   const thaiBahtText = (num: number): string => {
-    if (num === 30800) return 'สามหมื่นแปดร้อยบาทถ้วน';
-    // ฟังก์ชันย่อภาษาไทยแบบจำลองสำหรับราคาใช้งานทั่วไป
-    return `${num.toLocaleString('th-TH')} บาทถ้วน`;
+    if (num === 0) return 'ศูนย์บาทถ้วน';
+    const thaiNums = ['ศูนย์', 'หนึ่ง', 'สอง', 'สาม', 'สี่', 'ห้า', 'หก', 'เจ็ด', 'แปด', 'เก้า'];
+    const thaiUnits = ['', 'สิบ', 'ร้อย', 'พัน', 'หมื่น', 'แสน', 'ล้าน'];
+    const str = Math.round(num * 100).toString();
+    const integerPart = str.slice(0, -2);
+    const decimalPart = str.slice(-2);
+    let bahtText = '';
+    if (integerPart && integerPart !== '0') {
+      const len = integerPart.length;
+      for (let i = 0; i < len; i++) {
+        const digit = parseInt(integerPart[i]);
+        if (digit !== 0) {
+          let place = (len - 1 - i) % 6;
+          if (place === 0 && i > 0 && (len - 1 - i) >= 6) {
+            bahtText += 'ล้าน';
+          }
+          let digitText = thaiNums[digit];
+          let unitText = thaiUnits[place];
+          if (place === 1) {
+            if (digit === 1) digitText = '';
+            else if (digit === 2) digitText = 'ยี่';
+          }
+          if (place === 0 && digit === 1 && len > 1 && i === len - 1) {
+            digitText = 'เอ็ด';
+          }
+          bahtText += digitText + unitText;
+        }
+      }
+      bahtText += 'บาท';
+    }
+    if (decimalPart === '00') {
+      bahtText += 'ถ้วน';
+    } else {
+      const d1 = parseInt(decimalPart[0]);
+      const d2 = parseInt(decimalPart[1]);
+      let satangText = '';
+      if (d1 !== 0) {
+        let digitText = thaiNums[d1];
+        let unitText = 'สิบ';
+        if (d1 === 1) digitText = '';
+        else if (d1 === 2) digitText = 'ยี่';
+        satangText += digitText + unitText;
+      }
+      if (d2 !== 0) {
+        let digitText = thaiNums[d2];
+        if (d2 === 1 && d1 !== 0) {
+          digitText = 'เอ็ด';
+        }
+        satangText += digitText;
+      }
+      bahtText += satangText + 'สตางค์';
+    }
+    return bahtText;
   };
 
   const handleSave = async () => {
@@ -591,7 +752,7 @@ export default function JusticeFundPage() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-white tracking-wide">คำขอรับความช่วยเหลือเงินกองทุนยุติธรรม (กทย.4)</h1>
+          <h1 className="text-xl font-bold text-white tracking-wide">คำขอรับความช่วยเหลือเงินกองทุนยุติธรรม</h1>
           <p className="text-xs text-slate-400 mt-1">
             กรอกข้อมูลเสนอขอรับงบโครงการให้ความรู้ทางกฎหมายแก่ประชาชน และสั่งพิมพ์รายงานแยกรายฉบับ
           </p>
@@ -1149,7 +1310,7 @@ export default function JusticeFundPage() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {[
-                    { id: 'kth4', name: '1. แบบคำขอช่วยเหลือ (กทย.4)', desc: 'แบบฟอร์มคำขอทุนพร้อมข้อมูลประธานศูน์และสรุปผล' },
+                    { id: 'kth4', name: '1. แบบคำขอช่วยเหลือ', desc: 'แบบฟอร์มคำขอทุนพร้อมข้อมูลประธานศูน์และสรุปผล' },
                     { id: 'proposal', name: '2. เอกสารรายละเอียดโครงการ 9 หัวข้อ', desc: 'แผนรายละเอียดเหตุผล วัตถุประสงค์ ขั้นตอน และผลคาดหมาย' },
                     { id: 'schedule', name: '3. แผนงานตารางกำหนดการอบรม', desc: 'ตารางระบุ วัน เวลา หัวข้อ และคณะวิทยากรผู้บรรยาย' },
                     { id: 'expenses', name: '4. ตารางประมาณการรายจ่ายย่อย', desc: 'ตารางคำนวณงบอาหารว่าง อาหารกลางวัน และวิทยากร' },
@@ -1162,29 +1323,40 @@ export default function JusticeFundPage() {
                     return (
                       <div 
                         key={doc.id} 
-                        className={`bg-slate-950/60 p-4 border rounded-xl flex justify-between items-center transition-all ${
+                        className={`bg-slate-950/60 p-4 border rounded-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4 transition-all ${
                           isRefsDisabled ? 'opacity-40 border-slate-900' : 'border-slate-800/80 hover:border-indigo-500/20'
                         }`}
                       >
-                        <div className="space-y-1 pr-4">
+                        <div className="space-y-1">
                           <span className="text-xs font-semibold text-slate-200 block">{doc.name}</span>
                           <span className="text-[10px] text-slate-500 block leading-relaxed">{doc.desc}</span>
                           {isRefsDisabled && (
                             <span className="text-[9px] text-amber-500 font-semibold block mt-0.5">*(เฉพาะโครงการที่งบเกิน 50,000 บาท)</span>
                           )}
                         </div>
-                        <button
-                          type="button"
-                          disabled={isRefsDisabled}
-                          onClick={() => {
-                            setActivePrintDoc(doc.id);
-                            setView('print');
-                          }}
-                          className="flex items-center gap-1.5 px-3 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 text-white text-[10px] font-semibold rounded-lg shadow cursor-pointer shrink-0"
-                        >
-                          <Printer className="h-3.5 w-3.5" />
-                          <span>พิมพ์เอกสาร</span>
-                        </button>
+                        <div className="flex flex-wrap gap-2 w-full md:w-auto">
+                          <button
+                            type="button"
+                            disabled={isRefsDisabled}
+                            onClick={() => handleDownloadDocx(doc.id)}
+                            className="flex-1 md:flex-none flex items-center justify-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 text-white text-[10px] font-semibold rounded-lg shadow cursor-pointer transition-all"
+                          >
+                            <FileText className="h-3.5 w-3.5" />
+                            <span>ดาวน์โหลด Word (.docx)</span>
+                          </button>
+                          <button
+                            type="button"
+                            disabled={isRefsDisabled}
+                            onClick={() => {
+                              setActivePrintDoc(doc.id);
+                              setView('print');
+                            }}
+                            className="flex-1 md:flex-none flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 disabled:bg-slate-900 text-slate-300 text-[10px] font-semibold rounded-lg border border-slate-700 shadow cursor-pointer transition-all"
+                          >
+                            <Printer className="h-3.5 w-3.5" />
+                            <span>พรีวิวการจัดหน้า</span>
+                          </button>
+                        </div>
                       </div>
                     );
                   })}

@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { useSpeechRecognition } from '@/hooks/useSpeechRecognition';
+import { generateDocx } from '@/utils/docxGenerator';
 
 interface MeetingAttendee {
   id: string;
@@ -397,6 +398,71 @@ export default function MeetingsPage() {
     });
   };
 
+  // แปลงวันเป็นรูปแบบภาษาไทยเต็ม (เช่น 15 สิงหาคม 2569)
+  const formatDateToThai = (dateStr: string): string => {
+    if (!dateStr) return '';
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return dateStr;
+    const thMonths = [
+      'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+      'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
+    ];
+    return `${date.getDate()} ${thMonths[date.getMonth()]} ${date.getFullYear() + 543}`;
+  };
+
+  const handleDownloadDocx = async () => {
+    try {
+      const filename = 'รายงานการประชุมคณะทำงาน.docx';
+
+      Swal.fire({
+        title: 'กำลังสร้างไฟล์...',
+        text: 'ระบบกำลังดึงข้อมูลและกรอกลงในไฟล์ Word เทมเพลต',
+        background: '#0f172a',
+        color: '#f8fafc',
+        allowOutsideClick: false,
+        didOpen: () => {
+          Swal.showLoading();
+        }
+      });
+      
+      const docxData = {
+        meeting_title: formData.meeting_title || 'การประชุมคณะทำงาน',
+        meeting_no: editingId ? editingId.substring(0, 4) : '1',
+        meeting_date: formData.meeting_date ? formatDateToThai(formData.meeting_date) : '',
+        meeting_time: formData.meeting_time || '09:00 น.',
+        meeting_location: formData.location || 'สำนักงานศูนย์ไกล่เกลี่ยข้อพิพาทประจำตำบล',
+        chairman: formData.chairman || 'ประธานศูนย์ไกล่เกลี่ยข้อพิพาท',
+        reporter: formData.reporter || 'ผู้จดบันทึกรายงานการประชุม',
+        reporter_phone: formData.reporter_phone || '',
+        resolution: formData.resolution || 'ที่ประชุมมีมติรับทราบและดำเนินการอบรมเผยแพร่ความรู้ด้านสิทธิ์และกระบวนการยุติธรรมในชุมชน',
+        current_date: formatDateToThai(new Date().toISOString().split('T')[0]),
+      };
+      
+      await generateDocx(`/templates/${filename}`, docxData, filename);
+      
+      Swal.close();
+      Swal.fire({
+        icon: 'success',
+        title: 'ดาวน์โหลดสำเร็จ!',
+        text: `ดาวน์โหลดไฟล์ ${filename} เรียบร้อยแล้ว`,
+        background: '#0f172a',
+        color: '#f8fafc',
+        timer: 2000,
+        showConfirmButton: false
+      });
+    } catch (err) {
+      console.error(err);
+      Swal.close();
+      Swal.fire({
+        icon: 'error',
+        title: 'ดาวน์โหลดล้มเหลว!',
+        text: 'ไม่พบไฟล์เทมเพลต Word ในระบบ หรือมีข้อผิดพลาดกรุณาลองใหม่อีกครั้ง',
+        background: '#0f172a',
+        color: '#f8fafc'
+      });
+    }
+  };
+
   const handlePrint = () => {
     window.print();
   };
@@ -732,64 +798,36 @@ export default function MeetingsPage() {
               <div className="lg:col-span-2 bg-slate-900 border border-slate-800/80 p-6 rounded-2xl space-y-4 text-xs text-slate-300">
                 <h3 className="text-sm font-semibold text-white">รายละเอียดจัดประชุมคณะทำงาน</h3>
 
-                {/* AI Auto-fill helper box */}
-                <div className="bg-gradient-to-br from-slate-900 to-indigo-950/40 border border-indigo-500/20 rounded-2xl p-4 space-y-3 relative overflow-hidden shadow-lg shadow-indigo-950/5">
-                  <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/5 rounded-full blur-xl pointer-events-none" />
-                  
-                  <div className="space-y-3">
-                    <div className="flex flex-col items-center justify-center p-4 bg-slate-950/40 rounded-xl border border-slate-800/80 space-y-2 relative overflow-hidden">
-                      {isGlobalListening ? (
-                        <button
-                          type="button"
-                          onClick={stopGlobalListening}
-                          className="w-12 h-12 bg-rose-500 hover:bg-rose-600 text-white rounded-full flex items-center justify-center cursor-pointer transition-all shadow-lg shadow-rose-500/30 relative"
-                          title="หยุดบันทึกเสียง"
-                        >
-                          <span className="absolute inset-0 rounded-full bg-rose-500/30 animate-ping" />
-                          <Mic className="h-5.5 w-5.5 animate-pulse" />
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={startGlobalListening}
-                          className="w-12 h-12 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full flex items-center justify-center cursor-pointer transition-all shadow-lg shadow-indigo-600/30 hover:scale-105"
-                          title="เริ่มพูดบรรยายรายละเอียด"
-                        >
-                          <Mic className="h-5.5 w-5.5" />
-                        </button>
-                      )}
-                      
-                      <span className="text-[9px] font-semibold text-slate-400">
-                        {isGlobalListening ? "🔴 กำลังฟังเสียงพูดของคุณ..." : "🎤 กดเพื่อพูดเล่าเรื่อง (อ่านสคริป) ทั้งหมด"}
-                      </span>
-
-                      <textarea
-                        rows={5}
-                        placeholder="ข้อความที่ถอดความได้ จะปรากฏตรงนี้ และคุณสามารถพิมพ์แก้ไขเพิ่มเติมได้..."
-                        value={aiStoryText}
-                        onChange={(e) => setAiStoryText(e.target.value)}
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-[10px] text-slate-200 placeholder-slate-600 focus:outline-none focus:border-indigo-500 transition-all resize-y min-h-[120px] mt-1"
-                      />
+                {/* AI Auto-fill helper box (Unified Side-by-Side UX) */}
+                <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800/80 mb-6 space-y-3">
+                  <span className="text-[10px] text-slate-400 uppercase font-semibold flex items-center gap-1.5">
+                    <Sparkles className="h-3 w-3 text-indigo-400" />
+                    <span>บันทึกเสียงพูดถอดข้อมูลการประชุม (AI Voice Assistant)</span>
+                  </span>
+                  <div className="flex gap-2">
+                    <textarea
+                      value={aiStoryText}
+                      onChange={(e) => setAiStoryText(e.target.value)}
+                      placeholder="พูดเล่าบรรยายรายละเอียดการประชุม... เช่น การประชุมครั้งที่ 1/2569 วันที่ 10 มีนาคม 2569 ณ ห้องประชุมเทศบาล โดยมีนายสมศักดิ์เป็นประธาน..."
+                      className="flex-1 bg-slate-900 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500/80 resize-y min-h-[60px] font-light leading-relaxed"
+                    />
+                    <div className="flex flex-col gap-2">
+                      <button
+                        type="button"
+                        onClick={isGlobalListening ? stopGlobalListening : startGlobalListening}
+                        className={"p-2.5 rounded-xl border transition-all flex items-center justify-center cursor-pointer " + (isGlobalListening ? "bg-rose-600 border-rose-500 text-white animate-pulse" : "bg-slate-900 border-slate-800 text-slate-400 hover:text-white")}
+                      >
+                        {isGlobalListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleAIParsing}
+                        disabled={aiParsing || !aiStoryText.trim()}
+                        className="px-3 py-2.5 bg-indigo-600 disabled:bg-slate-800 hover:bg-indigo-500 text-white text-[10px] font-semibold rounded-xl cursor-pointer transition-all"
+                      >
+                        {aiParsing ? <Loader2 className="h-4 w-4 animate-spin" /> : 'ดึงข้อมูล'}
+                      </button>
                     </div>
-
-                    <button
-                      type="button"
-                      disabled={aiParsing || !aiStoryText.trim()}
-                      onClick={handleAIParsing}
-                      className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-30 disabled:hover:bg-indigo-600 text-white font-semibold py-2 px-3 rounded-xl flex items-center justify-center gap-1.5 cursor-pointer shadow-lg shadow-indigo-600/10 transition-all text-[11px]"
-                    >
-                      {aiParsing ? (
-                        <>
-                          <Loader2 className="animate-spin h-3.5 w-3.5" />
-                          <span>AI กำลังแยกวิเคราะห์ข้อมูล...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Sparkles className="h-3.5 w-3.5 text-indigo-200" />
-                          <span>สั่ง AI กรอกข้อมูลลงฟอร์ม</span>
-                        </>
-                      )}
-                    </button>
                   </div>
                 </div>
                 
@@ -1324,13 +1362,22 @@ export default function MeetingsPage() {
                   <p className="text-[10px] text-slate-500 font-light mt-0.5">พรีวิวโครงสร้างก่อนสั่งพิมพ์หรือบันทึกเป็นเอกสาร PDF แนบส่ง</p>
                 </div>
 
-                <button
-                  onClick={handlePrint}
-                  className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold cursor-pointer transition-colors shadow-lg"
-                >
-                  <Printer className="h-4 w-4" />
-                  <span>พิมพ์เอกสารบันทึกรายงาน / Save PDF</span>
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleDownloadDocx}
+                    className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold cursor-pointer transition-colors shadow-lg"
+                  >
+                    <FileText className="h-4 w-4" />
+                    <span>ดาวน์โหลดรายงานประชุม (.docx)</span>
+                  </button>
+                  <button
+                    onClick={handlePrint}
+                    className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold cursor-pointer transition-colors shadow-lg"
+                  >
+                    <Printer className="h-4 w-4" />
+                    <span>พิมพ์รายงานบันทึก (A4 / PDF)</span>
+                  </button>
+                </div>
               </div>
 
               {/* Print Sheet container */}

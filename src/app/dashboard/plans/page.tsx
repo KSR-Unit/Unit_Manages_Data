@@ -960,64 +960,36 @@ export default function PlansPage() {
             {/* Modal Form content */}
             <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-5 text-xs text-slate-300">
               
-              {/* AI Auto-fill dictation helper box (streamlined layout) */}
-              <div className="bg-gradient-to-br from-slate-900 to-indigo-950/40 border border-indigo-500/20 rounded-2xl p-4 space-y-3 relative overflow-hidden shadow-lg shadow-indigo-950/5">
-                <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/5 rounded-full blur-xl pointer-events-none" />
-                
-                <div className="space-y-3">
-                  <div className="flex flex-col items-center justify-center p-4 bg-slate-950/40 rounded-xl border border-slate-800/80 space-y-2 relative overflow-hidden">
-                    {isGlobalListening ? (
-                      <button
-                        type="button"
-                        onClick={stopGlobalListening}
-                        className="w-12 h-12 bg-rose-500 hover:bg-rose-600 text-white rounded-full flex items-center justify-center cursor-pointer transition-all shadow-lg shadow-rose-500/30 relative"
-                        title="หยุดบันทึกเสียง"
-                      >
-                        <span className="absolute inset-0 rounded-full bg-rose-500/30 animate-ping" />
-                        <Mic className="h-5.5 w-5.5 animate-pulse" />
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={startGlobalListening}
-                        className="w-12 h-12 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full flex items-center justify-center cursor-pointer transition-all shadow-lg shadow-indigo-600/30 hover:scale-105"
-                        title="เริ่มพูดบรรยายรายละเอียดแผนงาน"
-                      >
-                        <Mic className="h-5.5 w-5.5" />
-                      </button>
-                    )}
-                    
-                    <span className="text-[9px] font-semibold text-slate-400">
-                      {isGlobalListening ? "🔴 กำลังฟังเสียงพูดของคุณ..." : "🎤 กดเพื่อพูดรายละเอียดแผนงานทั้งหมด"}
-                    </span>
-
-                    <textarea
-                      rows={5}
-                      placeholder="อธิบายแผนงาน เช่น 'โครงการแผนพัฒนาชุมชน ปี 2569 ผู้รายงานสมชาย กิจกรรมแรก อบรมเจรจาไกล่เกลี่ย เริ่มวันที่ 1 ตุลาคม 2568 ถึง 30 พฤศจิกายน 2568 งบ 5 หมื่นบาท...'"
-                      value={aiStoryText}
-                      onChange={(e) => setAiStoryText(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-[10px] text-slate-200 placeholder-slate-600 focus:outline-none focus:border-indigo-500 transition-all resize-y min-h-[120px] mt-1"
-                    />
+              {/* AI Auto-fill helper box (Unified Side-by-Side UX) */}
+              <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800/80 mb-6 space-y-3">
+                <span className="text-[10px] text-slate-400 uppercase font-semibold flex items-center gap-1.5">
+                  <Sparkles className="h-3 w-3 text-indigo-400" />
+                  <span>บันทึกเสียงพูดถอดข้อมูลแผนโครงการ (AI Voice Assistant)</span>
+                </span>
+                <div className="flex gap-2">
+                  <textarea
+                    value={aiStoryText}
+                    onChange={(e) => setAiStoryText(e.target.value)}
+                    placeholder="พูดอธิบายโครงการหรือรายละเอียดแผนงาน... เช่น โครงการแผนพัฒนาการศึกษา เริ่มวันที่ 1 ตุลาคม 2569 บันทึกโดย นายวินัย..."
+                    className="flex-1 bg-slate-900 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500/80 resize-y min-h-[60px] font-light leading-relaxed"
+                  />
+                  <div className="flex flex-col gap-2">
+                    <button
+                      type="button"
+                      onClick={isGlobalListening ? stopGlobalListening : startGlobalListening}
+                      className={"p-2.5 rounded-xl border transition-all flex items-center justify-center cursor-pointer " + (isGlobalListening ? "bg-rose-600 border-rose-500 text-white animate-pulse" : "bg-slate-900 border-slate-800 text-slate-400 hover:text-white")}
+                    >
+                      {isGlobalListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleAIParsing}
+                      disabled={aiParsing || !aiStoryText.trim()}
+                      className="px-3 py-2.5 bg-indigo-600 disabled:bg-slate-800 hover:bg-indigo-500 text-white text-[10px] font-semibold rounded-xl cursor-pointer transition-all"
+                    >
+                      {aiParsing ? <Loader2 className="h-4 w-4 animate-spin" /> : 'ดึงข้อมูล'}
+                    </button>
                   </div>
-
-                  <button
-                    type="button"
-                    disabled={aiParsing || !aiStoryText.trim()}
-                    onClick={handleAIParsing}
-                    className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-30 disabled:hover:bg-indigo-600 text-white font-semibold py-2 px-3 rounded-xl flex items-center justify-center gap-1.5 cursor-pointer shadow-lg shadow-indigo-600/10 transition-all text-[11px]"
-                  >
-                    {aiParsing ? (
-                      <>
-                        <Loader2 className="animate-spin h-3.5 w-3.5" />
-                        <span>AI กำลังแยกวิเคราะห์ข้อมูล...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="h-3.5 w-3.5 text-indigo-200" />
-                        <span>สั่ง AI กรอกข้อมูลลงฟอร์ม</span>
-                      </>
-                    )}
-                  </button>
                 </div>
               </div>
 
