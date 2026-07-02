@@ -25,10 +25,13 @@ export async function generateDocx(templatePath: string, data: any, outputFilena
     const doc = new Docxtemplater(zip, {
       paragraphLoop: true,
       linebreaks: true,
+      delimiters: {
+        start: '{{',
+        end: '}}',
+      },
     });
     
-    doc.setData(data);
-    doc.render();
+    doc.render(data);
     
     const out = doc.getZip().generate({
       type: 'blob',
