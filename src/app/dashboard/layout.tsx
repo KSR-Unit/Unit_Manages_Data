@@ -18,7 +18,6 @@ export default function DashboardLayout({
   const router = useRouter();
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [reportsOpen, setReportsOpen] = useState(true);
   const [budgetsOpen, setBudgetsOpen] = useState(true);
   const [mediationOpen, setMediationOpen] = useState(true);
 
@@ -48,25 +47,16 @@ export default function DashboardLayout({
   const currentRole = profile?.role || 'user';
   const roleBadge = roleLabels[currentRole];
 
-  // 1. หมวดรายงานข้อมูลประจำเดือนทั่วไป
-  const reportModules = [
-    { name: 'การประชุม', path: '/dashboard/meetings', icon: Calendar },
-    { name: 'แผนงาน', path: '/dashboard/plans', icon: FileText },
-    { name: 'กิจกรรม', path: '/dashboard/activities', icon: Compass },
-    { name: 'การอบรม', path: '/dashboard/trainings', icon: BookOpen },
-    { name: 'รายงานไม่มีผลงาน', path: '/dashboard/zero_reports', icon: AlertTriangle },
-  ];
-
-  // 2. หมวดงบประมาณโครงการ
+  // 1. หมวดงบประมาณโครงการ
   const budgetModules = [
-    { name: 'ขอเงินกองทุนยุติธรรม (กทย.4)', path: '/dashboard/justice-fund', icon: FileText },
     { name: 'ของบประมาณอื่นๆ', path: '/dashboard/budgets', icon: FileText },
+    { name: 'ขอเงินกองทุนยุติธรรม', path: '/dashboard/justice-fund', icon: FileText },
   ];
 
-  // 3. หมวดรายงานการไกล่เกลี่ยข้อพิพาท
+  // 2. หมวดรายงานการไกล่เกลี่ยข้อพิพาท
   const mediationModules = [
-    { name: 'ตาม พ.ร.บ.ไกล่เกลี่ย 2562', path: '/dashboard/ems_reports', icon: Shield },
-    { name: 'ตามกฎหมายอื่น', path: '/dashboard/other_laws_reports', icon: FileText },
+    { name: 'การไกล่เกลี่ยตาม พ.ร.บ.ไกล่เกลี่ย 2562', path: '/dashboard/ems_reports', icon: Shield },
+    { name: 'การไกล่เกลี่ยตามกฎหมายอื่น', path: '/dashboard/other_laws_reports', icon: FileText },
   ];
 
   return (
@@ -120,7 +110,7 @@ export default function DashboardLayout({
 
         {/* Navigation Links */}
         <nav className="flex-1 space-y-2.5 px-4 py-6 overflow-y-auto">
-          {/* Main Dashboard Link */}
+          {/* 1. หน้าแรกสรุปข้อมูล */}
           <Link 
             href="/dashboard"
             onClick={() => setSidebarOpen(false)}
@@ -134,55 +124,73 @@ export default function DashboardLayout({
             <span>หน้าแรกสรุปข้อมูล</span>
           </Link>
 
-          {/* Collapsible Modules list */}
-          <div className="space-y-1">
-            <button
-              onClick={() => setReportsOpen(!reportsOpen)}
-              className="w-full flex items-center justify-between px-4 py-2.5 text-slate-400 hover:bg-slate-800/50 hover:text-white rounded-xl text-xs font-medium transition-all"
-            >
-              <div className="flex items-center gap-3">
-                <FileText className="h-4.5 w-4.5 text-indigo-400" />
-                <span>รายงานข้อมูลประจำเดือน</span>
-              </div>
-              <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${reportsOpen ? 'rotate-180' : ''}`} />
-            </button>
+          {/* 2. การประชุม */}
+          <Link 
+            href="/dashboard/meetings"
+            onClick={() => setSidebarOpen(false)}
+            className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
+              pathname === '/dashboard/meetings' 
+                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/15' 
+                : 'text-slate-400 hover:bg-slate-800/50 hover:text-white'
+            }`}
+          >
+            <Calendar className="h-5 w-5" />
+            <span>การประชุม</span>
+          </Link>
 
-            {reportsOpen && (
-              <div className="pl-4 space-y-1 animate-fadeIn">
-                {reportModules.map((m) => {
-                  const Icon = m.icon;
-                  const isActive = pathname === m.path;
-                  return (
-                    <Link
-                      key={m.path}
-                      href={m.path}
-                      onClick={() => setSidebarOpen(false)}
-                      className={`flex items-center gap-3 px-4 py-2.5 rounded-lg text-xs font-medium transition-all duration-200 ${
-                        isActive
-                          ? 'bg-slate-800 text-indigo-400 border-l-2 border-indigo-500 font-semibold'
-                          : 'text-slate-400 hover:bg-slate-800/30 hover:text-white'
-                      }`}
-                    >
-                      <Icon className="h-4 w-4 shrink-0" />
-                      <span>{m.name}</span>
-                    </Link>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+          {/* 3. แผนงาน */}
+          <Link 
+            href="/dashboard/plans"
+            onClick={() => setSidebarOpen(false)}
+            className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
+              pathname === '/dashboard/plans' 
+                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/15' 
+                : 'text-slate-400 hover:bg-slate-800/50 hover:text-white'
+            }`}
+          >
+            <FileText className="h-5 w-5" />
+            <span>แผนงาน</span>
+          </Link>
 
-          {/* 2. งบประมาณโครงการ */}
+          {/* 4. กิจกรรม */}
+          <Link 
+            href="/dashboard/activities"
+            onClick={() => setSidebarOpen(false)}
+            className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
+              pathname === '/dashboard/activities' 
+                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/15' 
+                : 'text-slate-400 hover:bg-slate-800/50 hover:text-white'
+            }`}
+          >
+            <Compass className="h-5 w-5" />
+            <span>กิจกรรม</span>
+          </Link>
+
+          {/* 5. การอบรม */}
+          <Link 
+            href="/dashboard/trainings"
+            onClick={() => setSidebarOpen(false)}
+            className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
+              pathname === '/dashboard/trainings' 
+                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/15' 
+                : 'text-slate-400 hover:bg-slate-800/50 hover:text-white'
+            }`}
+          >
+            <BookOpen className="h-5 w-5" />
+            <span>การอบรม</span>
+          </Link>
+
+          {/* 6. งบประมาณ */}
           <div className="space-y-1">
             <button
               onClick={() => setBudgetsOpen(!budgetsOpen)}
-              className="w-full flex items-center justify-between px-4 py-2.5 text-slate-400 hover:bg-slate-800/50 hover:text-white rounded-xl text-xs font-medium transition-all"
+              className="w-full flex items-center justify-between px-4 py-3 text-slate-400 hover:bg-slate-800/50 hover:text-white rounded-xl text-sm font-medium transition-all"
             >
               <div className="flex items-center gap-3">
-                <FileText className="h-4.5 w-4.5 text-indigo-400" />
+                <FileText className="h-5 w-5 text-indigo-400" />
                 <span>งบประมาณ</span>
               </div>
-              <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${budgetsOpen ? 'rotate-180' : ''}`} />
+              <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${budgetsOpen ? 'rotate-180' : ''}`} />
             </button>
 
             {budgetsOpen && (
@@ -210,17 +218,17 @@ export default function DashboardLayout({
             )}
           </div>
 
-          {/* 3. รายงานการไกล่เกลี่ย */}
+          {/* 7. รายงานการไกล่เกลี่ย */}
           <div className="space-y-1">
             <button
               onClick={() => setMediationOpen(!mediationOpen)}
-              className="w-full flex items-center justify-between px-4 py-2.5 text-slate-400 hover:bg-slate-800/50 hover:text-white rounded-xl text-xs font-medium transition-all"
+              className="w-full flex items-center justify-between px-4 py-3 text-slate-400 hover:bg-slate-800/50 hover:text-white rounded-xl text-sm font-medium transition-all"
             >
               <div className="flex items-center gap-3">
-                <Shield className="h-4.5 w-4.5 text-indigo-400" />
+                <Shield className="h-5 w-5 text-indigo-400" />
                 <span>รายงานการไกล่เกลี่ย</span>
               </div>
-              <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${mediationOpen ? 'rotate-180' : ''}`} />
+              <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${mediationOpen ? 'rotate-180' : ''}`} />
             </button>
 
             {mediationOpen && (
@@ -248,7 +256,7 @@ export default function DashboardLayout({
             )}
           </div>
 
-          {/* Assessment System Link */}
+          {/* 8. ประเมินองค์กรต้นแบบ */}
           <Link 
             href="/dashboard/assessment"
             onClick={() => setSidebarOpen(false)}
@@ -259,7 +267,21 @@ export default function DashboardLayout({
             }`}
           >
             <Award className="h-5 w-5" />
-            <span>ประเมินองค์กรต้นแบบ (อกตบ.)</span>
+            <span>ประเมินองค์กรต้นแบบ</span>
+          </Link>
+
+          {/* 9. รายงานไม่มีผลงาน */}
+          <Link 
+            href="/dashboard/zero_reports"
+            onClick={() => setSidebarOpen(false)}
+            className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
+              pathname === '/dashboard/zero_reports' 
+                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/15' 
+                : 'text-slate-400 hover:bg-slate-800/50 hover:text-white'
+            }`}
+          >
+            <AlertTriangle className="h-5 w-5" />
+            <span>รายงานไม่มีผลงาน</span>
           </Link>
 
           {/* Admin Tracking Link (Only visible to admin & subadmin) */}
