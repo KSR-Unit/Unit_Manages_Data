@@ -917,14 +917,25 @@ export default function DashboardPage() {
         <div className="mt-4">
           <div className="flex items-center justify-between mb-2">
             <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">💡 แนะนำตัวอย่างการพูดสั่งงาน (กดคลิกเพื่อลองสคริปต์):</p>
-            <button
-              type="button"
-              onClick={() => setScriptsModalOpen(true)}
-              className="text-[10px] text-indigo-400 hover:text-indigo-300 font-semibold flex items-center gap-1 transition-all cursor-pointer"
-            >
-              <Info className="h-3.5 w-3.5 animate-pulse" />
-              <span>ดูสคริปต์นำทางคำพูดแบบละเอียด (9 หมวดหมู่)</span>
-            </button>
+            <div className="flex items-center gap-4">
+              <button
+                type="button"
+                onClick={() => setScriptsModalOpen(true)}
+                className="text-[10px] text-indigo-400 hover:text-indigo-300 font-semibold flex items-center gap-1 transition-all cursor-pointer"
+              >
+                <Info className="h-3.5 w-3.5 animate-pulse" />
+                <span>ดูสคริปต์นำทางคำพูดแบบละเอียด (9 หมวดหมู่)</span>
+              </button>
+
+              <a
+                href="/templates/คู่มือสคริปต์การพูดนำเข้าข้อมูลด้วยเสียง_AI.docx"
+                download
+                className="text-[10px] text-emerald-400 hover:text-emerald-300 font-semibold flex items-center gap-1 transition-all cursor-pointer"
+              >
+                <FileText className="h-3.5 w-3.5" />
+                <span>ดาวน์โหลดคู่มือสคริปต์พูด (.docx)</span>
+              </a>
+            </div>
           </div>
           <div className="flex flex-wrap gap-2">
             <button
