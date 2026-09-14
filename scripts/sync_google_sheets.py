@@ -11,6 +11,26 @@ SUPABASE_KEY = os.environ.get("NEXT_PUBLIC_SUPABASE_ANON_KEY", "eyJhbGciOiJIUzI1
 SHEET_ID = "1bALI5idsWsHS9h6fQf0ShuogbuSqGJ5oeWoToIPQoTM"
 SHEET_CSV_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv"
 
+# ตารางแปลงเลขไทยเป็นเลขอารบิก
+THAI_TO_ARABIC = str.maketrans('๐๑๒๓๔๕๖๗๘๙', '0123456789')
+
+def to_arabic_numerals(text):
+    if not text:
+        return ""
+    return str(text).translate(THAI_TO_ARABIC).strip()
+
+PROVINCES_LIST = [
+    'กรุงเทพมหานคร', 'กระบี่', 'กาญจนบุรี', 'กาฬสินธุ์', 'กำแพงเพชร', 'ขอนแก่น', 'จันทบุรี', 'ฉะเชิงเทรา', 
+    'ชลบุรี', 'ชัยนาท', 'ชัยภูมิ', 'ชุมพร', 'ตรัง', 'ตราด', 'ตาก', 'นครนายก', 'นครปฐม', 'นครพนม', 
+    'นครราชสีมา', 'นครศรีธรรมราช', 'นครสวรรค์', 'นนทบุรี', 'นราธิวาส', 'น่าน', 'บึงกาฬ', 'บุรีรัมย์', 
+    'ปทุมธานี', 'ประจวบคีรีขันธ์', 'ปราจีนบุรี', 'ปัตตานี', 'พระนครศรีอยุธยา', 'พะเยา', 'พังงา', 'พัทลุง', 
+    'พิจิตร', 'พิษณุโลก', 'ภูเก็ต', 'มหาสารคาม', 'มุกดาหาร', 'ยะลา', 'ยโสธร', 'ระนอง', 'ระยอง', 'ราชบุรี', 
+    'ร้อยเอ็ด', 'ลพบุรี', 'ลำปาง', 'ลำพูน', 'ศรีสะเกษ', 'สกลนคร', 'สงขลา', 'สตูล', 'สมุทรปราการ', 
+    'สมุทรสงคราม', 'สมุทรสาคร', 'สระบุรี', 'สระแก้ว', 'สิงห์บุรี', 'สุพรรณบุรี', 'สุราษฎร์ธานี', 'สุรินทร์', 
+    'สุโขทัย', 'หนองคาย', 'หนองบัวลำภู', 'อำนาจเจริญ', 'อุดรธานี', 'อุตรดิตถ์', 'อุทัยธานี', 'อุบลราชธานี', 
+    'อ่างทอง', 'เชียงราย', 'เชียงใหม่', 'เพชรบุรี', 'เพชรบูรณ์', 'เลย', 'แพร่', 'แม่ฮ่องสอน'
+]
+
 def extract_subdistrict_district(center_name, address):
     sub = ""
     dist = ""
@@ -35,7 +55,7 @@ def extract_subdistrict_district(center_name, address):
         if sub_m:
             sub = sub_m.group(1).strip()
             
-    return sub or "ไม่ระบุตำบล", dist or "ไม่ระบุอำเภอ"
+    return to_arabic_numerals(sub) or "ไม่ระบุตำบล", to_arabic_numerals(dist) or "ไม่ระบุอำเภอ"
 
 def fetch_and_sync():
     print(f"1. กำลังดึงข้อมูลจาก Google Sheets ID: {SHEET_ID} ...")
@@ -60,17 +80,30 @@ def fetch_and_sync():
         first_name = row.get("ชื่อ", "").strip()
         last_name = row.get("นามสกุล", "").strip()
         position = row.get("ตำแหน่งในศูนย์", "").strip() or "คณะทำงาน"
-        center_code = row.get("รหัสศูนย์", "").strip()
-        center_name = row.get("ชื่อศูนย์", "").strip()
-        province = row.get("จังหวัดศูนย์", "").strip() or "ไม่ระบุจังหวัด"
+        
+        # แปลงรหัสศูนย์และชื่อศูนย์เป็นเลขอารบิก
+        center_code = to_arabic_numerals(row.get("รหัสศูนย์", "").strip())
+        center_name = to_arabic_numerals(row.get("ชื่อศูนย์", "").strip())
+        
         address = row.get("ที่อยู่", "").strip()
+        province = row.get("จังหวัดศูนย์", "").strip()
+        
+        # หากจังหวัดศูนย์ว่าง ให้กู้คืนจากที่อยู่
+        if not province and address:
+            for p in PROVINCES_LIST:
+                if p in address:
+                    province = p
+                    break
+        if not province:
+            province = "ไม่ระบุจังหวัด"
+            
         phone_orig = row.get("โทรศัพท์", "").strip()
         if not phone_orig:
             phone_orig = row.get("โทรศัพท์ศูนย์ (ช่องทางสำรอง)", "").strip()
             
         subdistrict, district = extract_subdistrict_district(center_name, address)
         
-        # สำหรับ 393 คนที่มีเลขบัตรผิด และคนที่ไม่มีเลขบัตร ให้ id_card_number เป็น None ทั้งหมด
+        # 393 คนที่มีเลขบัตรผิด และคนที่ไม่มีเลข ให้เป็น None
         id_card_number = None
         
         rows_to_insert.append({
@@ -84,12 +117,12 @@ def fetch_and_sync():
             "province": province,
             "district": district,
             "subdistrict": subdistrict,
-            "phone_original": phone_orig,
+            "phone_original": to_arabic_numerals(phone_orig),
             "id_card_number": id_card_number,
             "status": "pending"
         })
         
-    print(f"2. สกัดข้อมูลสำเร็จทั้งหมด: {len(rows_to_insert)} รายการ")
+    print(f"2. สกัดข้อมูลสำเร็จทั้งหมด: {len(rows_to_insert)} รายการ (แปลงเลขอารบิกและกู้คืนจังหวัดเรียบร้อย)")
     
     # Batch upsert to Supabase REST API in chunks of 500
     chunk_size = 500
@@ -119,14 +152,11 @@ def fetch_and_sync():
         except urllib.error.HTTPError as he:
             err_msg = he.read().decode('utf-8')
             print(f"   [ข้อผิดพลาด] ไม่สามารถนำเข้าชุดที่ {i} ถึง {i+len(chunk)}: {he.code} {err_msg}")
-            if "Could not find the table" in err_msg or "PGRST205" in err_msg:
-                print("\n** หมายเหตุ: ยังไม่ได้สร้างตาราง 'mediator_officers' ใน Supabase **")
-                print("กรุณานำไฟล์ supabase/migrations/create_mediator_officers.sql ไปรันใน Supabase SQL Editor ก่อนครับ")
-                return
+            return
         except Exception as ex:
             print(f"   [ข้อผิดพลาด] {ex}")
             
-    print(f"\nเสร็จสิ้น! นำเข้าข้อมูลสำเร็จ {success_count} รายการ")
+    print(f"\nเสร็จสิ้น! นำเข้าข้อมูลสำเร็จ {success_count} รายการ (เลขอารบิกครบถ้วน)")
 
 if __name__ == "__main__":
     fetch_and_sync()
