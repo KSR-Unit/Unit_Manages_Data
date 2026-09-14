@@ -10,13 +10,12 @@ import {
   Search, 
   UserCheck, 
   Building2, 
-  MapPin, 
   Calendar, 
   Phone, 
   CreditCard,
-  ChevronDown,
-  ChevronUp,
-  FileText
+  FileText,
+  Lock,
+  ArrowRight
 } from 'lucide-react';
 
 interface CenterOption {
@@ -47,9 +46,10 @@ const THAI_MONTHS = [
 ];
 
 export default function UpdateMediatorPage() {
-  // PDPA State
+  // PDPA Modal & Consent State
+  const [isPdpaModalOpen, setIsPdpaModalOpen] = useState(true);
+  const [consentCheckbox, setConsentCheckbox] = useState(false);
   const [consentAccepted, setConsentAccepted] = useState(false);
-  const [showFullPrivacy, setShowFullPrivacy] = useState(false);
 
   // Cascading Location States
   const [provinces, setProvinces] = useState<string[]>([]);
@@ -104,6 +104,18 @@ export default function UpdateMediatorPage() {
     }
     loadProvinces();
   }, []);
+
+  // เมื่อเปิด Modal ป้องกันการเลื่อนหน้าจอด้านหลัง
+  useEffect(() => {
+    if (isPdpaModalOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isPdpaModalOpen]);
 
   // 2. เมื่อเลือกจังหวัด -> โหลดอำเภอ
   const handleProvinceChange = async (prov: string) => {
@@ -192,16 +204,18 @@ export default function UpdateMediatorPage() {
     setIsDone(false);
   };
 
+  // กดยอมรับจากใน Modal
+  const handleAcceptPdpaModal = () => {
+    if (!consentCheckbox) return;
+    setConsentAccepted(true);
+    setIsPdpaModalOpen(false);
+  };
+
   // 5. ค้นหาชื่อในศูนย์ที่เลือก
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!consentAccepted) {
-      Swal.fire({
-        icon: 'warning',
-        title: 'กรุณายอมรับเงื่อนไข',
-        text: 'กรุณาอ่านและกดยอมรับประกาศการคุ้มครองข้อมูลส่วนบุคคล (PDPA) ด้านบนก่อนทำการค้นหา',
-        confirmButtonColor: '#4f46e5',
-      });
+      setIsPdpaModalOpen(true);
       return;
     }
 
@@ -237,7 +251,6 @@ export default function UpdateMediatorPage() {
       if (json.success) {
         setSearchResults(json.data);
         if (json.data.length === 1) {
-          // ถ้าเจอคนเดียว เลือกให้อัตโนมัติ
           selectOfficerToUpdate(json.data[0]);
         }
       } else {
@@ -258,7 +271,6 @@ export default function UpdateMediatorPage() {
 
   const selectOfficerToUpdate = (officer: OfficerRecord) => {
     setSelectedOfficer(officer);
-    // เติมเบอร์โทรศัพท์เดิมให้เป็นค่าเริ่มต้น ถ้ามี
     if (officer.phone_updated) {
       setPhoneInput(formatThaiPhone(officer.phone_updated));
     } else if (officer.phone_original) {
@@ -272,7 +284,6 @@ export default function UpdateMediatorPage() {
     setBirthYearBe('');
   };
 
-  // ตรวจสอบความถูกต้องของเลขบัตรประชาชนปัจจุบัน
   const isIdCardValid = validateThaiNationalID(idCardInput.replace(/\D/g, ''));
   const isIdCardFilled = idCardInput.replace(/\D/g, '').length === 13;
 
@@ -388,6 +399,120 @@ export default function UpdateMediatorPage() {
 
   return (
     <div className="space-y-6">
+      {/* ========================================================================= */}
+      {/* MODAL: ประกาศนโยบายความเป็นส่วนตัว (PDPA Modal) ขนาดใหญ่และเป็นทางการ */}
+      {/* ========================================================================= */}
+      {isPdpaModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-950/70 backdrop-blur-md overflow-y-auto animate-in fade-in duration-200">
+          <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl border border-slate-200 flex flex-col max-h-[92vh] overflow-hidden my-auto animate-in zoom-in-95 duration-200">
+            
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-indigo-900 via-indigo-800 to-indigo-900 px-6 py-5 text-white flex items-center space-x-4 border-b border-indigo-700/50">
+              <div className="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-xs flex items-center justify-center text-indigo-200 border border-white/20 shrink-0 shadow-inner">
+                <ShieldCheck className="w-7 h-7 text-indigo-300" />
+              </div>
+              <div>
+                <div className="text-[11px] font-bold tracking-wider text-indigo-200 uppercase">
+                  กรมคุ้มครองสิทธิและเสรีภาพ กระทรวงยุติธรรม
+                </div>
+                <h3 className="text-lg sm:text-xl font-extrabold text-white leading-tight">
+                  ประกาศการคุ้มครองข้อมูลส่วนบุคคล (PDPA Notice)
+                </h3>
+                <p className="text-xs text-indigo-200 mt-0.5">
+                  และแบบแสดงความยินยอมเพื่อปรับปรุงฐานข้อมูลคณะทำงานประจำศูนย์ไกล่เกลี่ยฯ
+                </p>
+              </div>
+            </div>
+
+            {/* Modal Body (Scrollable with detailed legal & practical policy) */}
+            <div className="flex-1 overflow-y-auto p-5 sm:p-7 space-y-4 text-xs sm:text-sm text-slate-600 leading-relaxed divide-y divide-slate-100">
+              <div className="pb-1">
+                <p className="text-slate-700 font-medium leading-normal">
+                  กรมคุ้มครองสิทธิและเสรีภาพ กระทรวงยุติธรรม ให้ความสำคัญยิ่งต่อการคุ้มครองข้อมูลส่วนบุคคลของท่าน เพื่อให้เป็นไปตาม <b>พระราชบัญญัติคุ้มครองข้อมูลส่วนบุคคล พ.ศ. 2562 (PDPA)</b> จึงขอประกาศแจ้งรายละเอียดและขอความยินยอมในการเก็บรวบรวม ใช้ และประมวลผลข้อมูลส่วนบุคคล ดังนี้:
+                </p>
+              </div>
+
+              {/* วัตถุประสงค์ */}
+              <div className="pt-3 space-y-1.5">
+                <h4 className="font-bold text-slate-900 flex items-center space-x-2">
+                  <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 text-xs flex items-center justify-center font-bold">1</span>
+                  <span>วัตถุประสงค์ในการเก็บรวบรวมข้อมูล</span>
+                </h4>
+                <p className="pl-7 text-slate-600">
+                  เพื่อใช้ในการตรวจสอบ ปรับปรุง และพัฒนาระบบฐานข้อมูลทะเบียนประวัติของคณะทำงานบริหารประจำศูนย์ไกล่เกลี่ยข้อพิพาทภาคประชาชน ตามพระราชบัญญัติการไกล่เกลี่ยข้อพิพาท พ.ศ. 2562 ให้มีความครบถ้วน ถูกต้อง และเป็นปัจจุบัน เพื่อรองรับการเชื่อมโยงระบบสารสนเทศใหม่ การติดต่อประสานงาน และการรับสิทธิประโยชน์ตามระเบียบราชการ
+                </p>
+              </div>
+
+              {/* ข้อมูลที่จัดเก็บ */}
+              <div className="pt-3 space-y-1.5">
+                <h4 className="font-bold text-slate-900 flex items-center space-x-2">
+                  <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 text-xs flex items-center justify-center font-bold">2</span>
+                  <span>รายการข้อมูลส่วนบุคคลที่มีการเก็บรวบรวมเพิ่มเติม</span>
+                </h4>
+                <ul className="pl-7 list-disc space-y-1 text-slate-600">
+                  <li><b>ข้อมูลระบุตัวตน:</b> ชื่อ - นามสกุล, เลขประจำตัวประชาชน 13 หลัก, วันเดือนปีเกิด (พ.ศ.)</li>
+                  <li><b>ข้อมูลการติดต่อ:</b> หมายเลขโทรศัพท์มือถือ</li>
+                  <li><b>ข้อมูลสังกัดและตำแหน่ง:</b> ตำแหน่งในคณะทำงาน, ศูนย์ไกล่เกลี่ยข้อพิพาทภาคประชาชนที่สังกัด</li>
+                </ul>
+              </div>
+
+              {/* ความปลอดภัย */}
+              <div className="pt-3 space-y-1.5">
+                <h4 className="font-bold text-slate-900 flex items-center space-x-2">
+                  <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 text-xs flex items-center justify-center font-bold">3</span>
+                  <span>การรักษาความมั่นคงปลอดภัยและการใช้ข้อมูล</span>
+                </h4>
+                <p className="pl-7 text-slate-600">
+                  ข้อมูลของท่านจะถูกจัดเก็บในระบบฐานข้อมูลที่มีการควบคุมการเข้าถึงอย่างรัดกุม (Access Control) และมีมาตรการรักษาความปลอดภัยตามมาตรฐานสากล จะไม่มีการนำข้อมูลไปเปิดเผยหรือแสวงหาผลประโยชน์ทางการค้าแก่บุคคลภายนอกโดยเด็ดขาด
+                </p>
+              </div>
+
+              {/* สิทธิของเจ้าของข้อมูล */}
+              <div className="pt-3 space-y-1.5">
+                <h4 className="font-bold text-slate-900 flex items-center space-x-2">
+                  <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 text-xs flex items-center justify-center font-bold">4</span>
+                  <span>สิทธิของเจ้าของข้อมูลส่วนบุคคล</span>
+                </h4>
+                <p className="pl-7 text-slate-600">
+                  ท่านมีสิทธิตามกฎหมายในการขอเข้าถึง ขอรับสำเนา ขอแก้ไขข้อมูลให้ถูกต้อง หรือเพิกถอนความยินยอมได้ตามหลักเกณฑ์ที่กฎหมายกำหนด โดยสามารถติดต่อสอบถามได้ที่ กรมคุ้มครองสิทธิและเสรีภาพ กระทรวงยุติธรรม
+                </p>
+              </div>
+            </div>
+
+            {/* Modal Footer with Checkbox and Proceed Button */}
+            <div className="bg-slate-50 p-5 sm:p-6 border-t border-slate-200 space-y-4">
+              <label className="flex items-start space-x-3 p-3.5 bg-indigo-50/70 border-2 border-indigo-200 rounded-2xl cursor-pointer hover:bg-indigo-50 transition-colors">
+                <input
+                  type="checkbox"
+                  checked={consentCheckbox}
+                  onChange={(e) => setConsentCheckbox(e.target.checked)}
+                  className="mt-1 w-5 h-5 text-indigo-600 border-indigo-300 rounded-md focus:ring-indigo-500 cursor-pointer"
+                />
+                <span className="text-xs sm:text-sm text-slate-800 font-semibold leading-snug select-none">
+                  ข้าพเจ้าได้อ่านและเข้าใจรายละเอียดตามประกาศการคุ้มครองข้อมูลส่วนบุคคลข้างต้นแล้ว และขอยืนยันว่าข้อมูลที่ระบุในการปรับปรุงนี้เป็นข้อมูลของข้าพเจ้าจริง พร้อมทั้งยินยอมให้กรมคุ้มครองสิทธิและเสรีภาพ เก็บรวบรวมและประมวลผลข้อมูลดังกล่าวเพื่อวัตถุประสงค์ข้างต้น
+                </span>
+              </label>
+
+              <div className="flex items-center justify-between gap-3">
+                <div className="text-[11px] text-slate-400 hidden sm:block">
+                  * ต้องกดยอมรับเพื่อเข้าสู่ขั้นตอนการค้นหาและกรอกข้อมูล
+                </div>
+                <button
+                  type="button"
+                  disabled={!consentCheckbox}
+                  onClick={handleAcceptPdpaModal}
+                  className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-7 py-3 rounded-xl text-sm transition-all shadow-lg shadow-indigo-200 flex items-center justify-center space-x-2 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  <span>ยอมรับและดำเนินการต่อ</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      )}
+
       {/* Intro Banner */}
       <div className="bg-gradient-to-r from-indigo-900 to-indigo-700 rounded-2xl p-6 sm:p-8 text-white shadow-lg relative overflow-hidden">
         <div className="relative z-10 max-w-2xl">
@@ -400,68 +525,36 @@ export default function UpdateMediatorPage() {
           <p className="mt-2 text-indigo-100 text-sm sm:text-base leading-relaxed">
             เพื่อรองรับการพัฒนาระบบใหม่ของกรมคุ้มครองสิทธิและเสรีภาพ ขอความร่วมมือท่านตรวจสอบและบันทึกเลขประจำตัวประชาชน 13 หลัก และข้อมูลการติดต่อให้ครบถ้วนสมบูรณ์
           </p>
+          
+          {/* Badge แสดงสถานะการยอมรับ PDPA */}
+          <div className="mt-4 flex items-center space-x-3">
+            {consentAccepted ? (
+              <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-200 border border-emerald-400/30">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-300" />
+                <span>ยินยอมตามนโยบาย PDPA แล้ว</span>
+              </span>
+            ) : (
+              <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/20 text-amber-200 border border-amber-400/30">
+                <Lock className="w-3.5 h-3.5 text-amber-300" />
+                <span>รอยืนยันนโยบาย PDPA</span>
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={() => setIsPdpaModalOpen(true)}
+              className="text-xs text-indigo-200 hover:text-white underline font-medium"
+            >
+              อ่านประกาศ PDPA ฉบับเต็ม
+            </button>
+          </div>
         </div>
         <div className="absolute right-0 bottom-0 translate-x-8 translate-y-8 opacity-10 pointer-events-none">
           <ShieldCheck className="w-64 h-64 text-white" />
         </div>
       </div>
 
-      {/* ส่วนที่ 0: ประกาศนโยบายการคุ้มครองข้อมูลส่วนบุคคล (PDPA) */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 shadow-xs">
-        <div className="flex items-start justify-between">
-          <div className="flex items-center space-x-2 text-slate-900 font-bold text-base sm:text-lg">
-            <ShieldCheck className="w-5 h-5 text-indigo-600" />
-            <h3>ประกาศการคุ้มครองข้อมูลส่วนบุคคล (PDPA)</h3>
-          </div>
-          <button
-            type="button"
-            onClick={() => setShowFullPrivacy(!showFullPrivacy)}
-            className="text-xs text-indigo-600 hover:text-indigo-800 font-medium flex items-center space-x-1"
-          >
-            <span>{showFullPrivacy ? 'ย่อรายละเอียด' : 'อ่านรายละเอียดทั้งหมด'}</span>
-            {showFullPrivacy ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-          </button>
-        </div>
-
-        <p className="mt-2 text-xs sm:text-sm text-slate-600 leading-relaxed">
-          กรมคุ้มครองสิทธิและเสรีภาพ ให้ความสำคัญกับการคุ้มครองข้อมูลส่วนบุคคลของท่าน ข้อมูลที่จัดเก็บ (เลขบัตรประชาชน 13 หลัก, วันเดือนปีเกิด, เบอร์โทรศัพท์) จะใช้เพื่อประโยชน์ในการตรวจสอบและปรับปรุงฐานข้อมูลคณะทำงานบริหารประจำศูนย์ไกล่เกลี่ยข้อพิพาทภาคประชาชน ตาม พ.ร.บ. การไกล่เกลี่ยข้อพิพาท พ.ศ. 2562 และจะไม่นำไปเปิดเผยต่อบุคคลภายนอกโดยไม่ได้รับอนุญาต
-        </p>
-
-        {showFullPrivacy && (
-          <div className="mt-4 p-4 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-600 space-y-3 leading-relaxed animate-in fade-in duration-200">
-            <div>
-              <p className="font-semibold text-slate-800">1. วัตถุประสงค์การเก็บรวบรวมข้อมูล</p>
-              <p>เพื่อใช้ในการปรับปรุงและพัฒนาระบบฐานข้อมูลทะเบียนประวัติของคณะทำงานบริหารประจำศูนย์ไกล่เกลี่ยข้อพิพาทภาคประชาชน ให้มีความครบถ้วนถูกต้อง เพื่อรองรับการเชื่อมโยงระบบบริหารจัดการฐานข้อมูลใหม่ การประสานงานภารกิจ และการส่งเสริมสนับสนุนสิทธิประโยชน์ตามที่กฎหมายกำหนด</p>
-            </div>
-            <div>
-              <p className="font-semibold text-slate-800">2. ข้อมูลที่มีการเก็บรวบรวมเพิ่มเติม</p>
-              <p>ชื่อ-นามสกุล, เลขประจำตัวประชาชน 13 หลัก, วันเดือนปีเกิด, หมายเลขโทรศัพท์มือถือ, ตำแหน่งในศูนย์ไกล่เกลี่ยฯ</p>
-            </div>
-            <div>
-              <p className="font-semibold text-slate-800">3. สิทธิของเจ้าของข้อมูล</p>
-              <p>ท่านมีสิทธิตามกฎหมายในการขอเข้าถึง ขอรับสำเนา ขอแก้ไข หรือระงับการใช้ข้อมูลได้ โดยติดต่อ กรมคุ้มครองสิทธิและเสรีภาพ กระทรวงยุติธรรม</p>
-            </div>
-          </div>
-        )}
-
-        {/* Checkbox ให้กดยอมรับ */}
-        <div className="mt-4 pt-4 border-t border-slate-100">
-          <label className="flex items-start space-x-3 cursor-pointer group">
-            <input
-              type="checkbox"
-              checked={consentAccepted}
-              onChange={(e) => setConsentAccepted(e.target.checked)}
-              className="mt-0.5 w-4 h-4 text-indigo-600 border-slate-300 rounded-sm focus:ring-indigo-500 cursor-pointer"
-            />
-            <span className="text-xs sm:text-sm text-slate-700 leading-snug font-medium select-none group-hover:text-indigo-900 transition-colors">
-              ข้าพเจ้าได้อ่านและเข้าใจรายละเอียดตามประกาศการคุ้มครองข้อมูลส่วนบุคคลข้างต้น และขอยืนยันว่าข้อมูลที่ระบุในการปรับปรุงข้อมูลนี้เป็นข้อมูลของข้าพเจ้าจริง พร้อมทั้งยินยอมให้กรมคุ้มครองสิทธิและเสรีภาพ ประมวลผลข้อมูลดังกล่าวเพื่อวัตถุประสงค์ข้างต้น
-            </span>
-          </label>
-        </div>
-      </div>
-
       {/* ถ้ากดยอมรับแล้ว ปลดล็อกขั้นตอนค้นหาและกรอกข้อมูล */}
-      <div className={`space-y-6 transition-all duration-300 ${!consentAccepted ? 'opacity-40 pointer-events-none' : 'opacity-100'}`}>
+      <div className={`space-y-6 transition-all duration-300 ${!consentAccepted ? 'opacity-40 pointer-events-none select-none filter blur-xs' : 'opacity-100'}`}>
         {/* ส่วนที่ 1: เลือกศูนย์ไกล่เกลี่ยฯ */}
         <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 shadow-xs space-y-4">
           <div className="flex items-center space-x-2 text-slate-900 font-bold text-base sm:text-lg">
@@ -583,7 +676,7 @@ export default function UpdateMediatorPage() {
               <button
                 type="submit"
                 disabled={isSearching}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-6 py-3 rounded-xl text-sm transition-all shadow-md shadow-indigo-100 flex items-center justify-center space-x-2 disabled:opacity-50"
+                className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-6 py-3 rounded-xl text-sm transition-all shadow-md shadow-indigo-100 flex items-center justify-center space-x-2 disabled:opacity-50 cursor-pointer"
               >
                 {isSearching ? (
                   <>
@@ -673,7 +766,7 @@ export default function UpdateMediatorPage() {
                 <button
                   type="button"
                   onClick={() => setSelectedOfficer(null)}
-                  className="mt-2 text-xs font-semibold text-blue-600 hover:text-blue-800 underline"
+                  className="mt-2 text-xs font-semibold text-blue-600 hover:text-blue-800 underline cursor-pointer"
                 >
                   ค้นหารายชื่ออื่น
                 </button>
@@ -699,7 +792,7 @@ export default function UpdateMediatorPage() {
                       resetSearchState();
                       setSearchKeyword('');
                     }}
-                    className="inline-flex items-center space-x-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium px-5 py-2.5 rounded-xl transition-all shadow-xs"
+                    className="inline-flex items-center space-x-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium px-5 py-2.5 rounded-xl transition-all shadow-xs cursor-pointer"
                   >
                     <span>กลับไปหน้าค้นหา</span>
                   </button>
@@ -726,7 +819,7 @@ export default function UpdateMediatorPage() {
                   <button
                     type="button"
                     onClick={() => setSelectedOfficer(null)}
-                    className="self-start sm:self-center text-xs text-slate-400 hover:text-slate-600 underline"
+                    className="self-start sm:self-center text-xs text-slate-400 hover:text-slate-600 underline cursor-pointer"
                   >
                     เปลี่ยนชื่อ
                   </button>
@@ -846,7 +939,7 @@ export default function UpdateMediatorPage() {
                     <button
                       type="submit"
                       disabled={isSubmitting || !isIdCardValid}
-                      className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3.5 px-6 rounded-xl text-base transition-all shadow-lg shadow-indigo-100 flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3.5 px-6 rounded-xl text-base transition-all shadow-lg shadow-indigo-100 flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                     >
                       {isSubmitting ? (
                         <>
