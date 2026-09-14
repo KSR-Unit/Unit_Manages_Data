@@ -2,7 +2,12 @@
 
 import React, { useState, useEffect } from 'react';
 import Swal from 'sweetalert2';
-import { validateThaiNationalID, formatThaiNationalID, formatThaiPhone } from '@/utils/thaiIdValidator';
+import { 
+  validateThaiNationalID, 
+  formatThaiNationalID, 
+  formatThaiPhone, 
+  getCleanedValidMobile 
+} from '@/utils/thaiIdValidator';
 import { 
   ShieldCheck, 
   CheckCircle2, 
@@ -12,10 +17,11 @@ import {
   Building2, 
   Calendar, 
   Phone, 
-  CreditCard,
-  FileText,
-  Lock,
-  ArrowRight
+  CreditCard, 
+  Lock, 
+  ArrowRight,
+  ClipboardCheck,
+  Edit3
 } from 'lucide-react';
 
 interface CenterOption {
@@ -83,7 +89,10 @@ export default function UpdateMediatorPage() {
   const [birthMonth, setBirthMonth] = useState('');
   const [birthYearBe, setBirthYearBe] = useState('');
 
-  // Submission Completed
+  // Confirmation Modal State
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+
+  // Submission Completed State
   const [isDone, setIsDone] = useState(false);
 
   // 1. โหลดรายชื่อจังหวัดทั้งหมดเมื่อเปิดหน้า
@@ -107,7 +116,7 @@ export default function UpdateMediatorPage() {
 
   // เมื่อเปิด Modal ป้องกันการเลื่อนหน้าจอด้านหลัง
   useEffect(() => {
-    if (isPdpaModalOpen) {
+    if (isPdpaModalOpen || showConfirmModal) {
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = 'unset';
@@ -115,7 +124,7 @@ export default function UpdateMediatorPage() {
     return () => {
       document.body.style.overflow = 'unset';
     };
-  }, [isPdpaModalOpen]);
+  }, [isPdpaModalOpen, showConfirmModal]);
 
   // 2. เมื่อเลือกจังหวัด -> โหลดอำเภอ
   const handleProvinceChange = async (prov: string) => {
@@ -201,10 +210,11 @@ export default function UpdateMediatorPage() {
     setBirthDay('');
     setBirthMonth('');
     setBirthYearBe('');
+    setShowConfirmModal(false);
     setIsDone(false);
   };
 
-  // กดยอมรับจากใน Modal
+  // กดยอมรับจากใน PDPA Modal
   const handleAcceptPdpaModal = () => {
     if (!consentCheckbox) return;
     setConsentAccepted(true);
@@ -271,13 +281,17 @@ export default function UpdateMediatorPage() {
 
   const selectOfficerToUpdate = (officer: OfficerRecord) => {
     setSelectedOfficer(officer);
-    if (officer.phone_updated) {
-      setPhoneInput(formatThaiPhone(officer.phone_updated));
-    } else if (officer.phone_original) {
-      setPhoneInput(formatThaiPhone(officer.phone_original));
+    
+    // ตรวจสอบเบอร์โทร:
+    // ถ้าถูกต้องครบถ้วน (10 หลัก ขึ้นต้น 06, 08, 09) ดึงขึ้นมาแสดง
+    // หากรูปแบบไม่ใช่ หรือขาดหายไป ให้เป็นช่องว่าง บังคับกรอกใหม่!
+    const validMobile = getCleanedValidMobile(officer.phone_updated || officer.phone_original || '');
+    if (validMobile) {
+      setPhoneInput(formatThaiPhone(validMobile));
     } else {
       setPhoneInput('');
     }
+
     setIdCardInput('');
     setBirthDay('');
     setBirthMonth('');
@@ -287,8 +301,8 @@ export default function UpdateMediatorPage() {
   const isIdCardValid = validateThaiNationalID(idCardInput.replace(/\D/g, ''));
   const isIdCardFilled = idCardInput.replace(/\D/g, '').length === 13;
 
-  // 6. บันทึกข้อมูล
-  const handleSubmit = async (e: React.FormEvent) => {
+  // 6. กดปุ่มเปิด Modal ยืนยันข้อมูล
+  const handleOpenConfirmModal = (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!selectedOfficer) return;
@@ -324,27 +338,16 @@ export default function UpdateMediatorPage() {
       return;
     }
 
+    // เปิด Modal ยืนยันข้อมูล
+    setShowConfirmModal(true);
+  };
+
+  // 7. บันทึกข้อมูลจริงหลังจากกดยืนยันใน Confirm Modal
+  const executeSubmit = async () => {
+    if (!selectedOfficer) return;
+
+    const cleanedPhone = phoneInput.replace(/\D/g, '');
     const birthDateBeStr = `${birthDay} ${birthMonth} ${birthYearBe}`;
-
-    const confirmRes = await Swal.fire({
-      title: 'ยืนยันข้อมูลความถูกต้อง',
-      html: `
-        <div class="text-left text-sm space-y-2 p-3 bg-slate-50 rounded-lg">
-          <div><b>ชื่อ-สกุล:</b> ${selectedOfficer.title || ''}${selectedOfficer.first_name} ${selectedOfficer.last_name}</div>
-          <div><b>เลขบัตรประชาชน:</b> ${formatThaiNationalID(idCardInput)}</div>
-          <div><b>เบอร์โทรศัพท์:</b> ${formatThaiPhone(phoneInput)}</div>
-          <div><b>วันเดือนปีเกิด:</b> ${birthDateBeStr}</div>
-        </div>
-      `,
-      icon: 'question',
-      showCancelButton: true,
-      confirmButtonText: 'ยืนยันและบันทึกข้อมูล',
-      cancelButtonText: 'แก้ไขข้อมูล',
-      confirmButtonColor: '#4f46e5',
-      cancelButtonColor: '#94a3b8',
-    });
-
-    if (!confirmRes.isConfirmed) return;
 
     setIsSubmitting(true);
     try {
@@ -362,6 +365,7 @@ export default function UpdateMediatorPage() {
 
       const json = await res.json();
       if (json.success) {
+        setShowConfirmModal(false);
         setIsDone(true);
         Swal.fire({
           icon: 'success',
@@ -400,7 +404,7 @@ export default function UpdateMediatorPage() {
   return (
     <div className="space-y-6">
       {/* ========================================================================= */}
-      {/* MODAL: ประกาศนโยบายความเป็นส่วนตัว (PDPA Modal) ขนาดใหญ่และเป็นทางการ */}
+      {/* MODAL 1: ประกาศนโยบายความเป็นส่วนตัว (PDPA Modal) ขนาดใหญ่และเป็นทางการ */}
       {/* ========================================================================= */}
       {isPdpaModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-950/70 backdrop-blur-md overflow-y-auto animate-in fade-in duration-200">
@@ -424,7 +428,7 @@ export default function UpdateMediatorPage() {
               </div>
             </div>
 
-            {/* Modal Body (Scrollable with detailed legal & practical policy) */}
+            {/* Modal Body */}
             <div className="flex-1 overflow-y-auto p-5 sm:p-7 space-y-4 text-xs sm:text-sm text-slate-600 leading-relaxed divide-y divide-slate-100">
               <div className="pb-1">
                 <p className="text-slate-700 font-medium leading-normal">
@@ -513,6 +517,134 @@ export default function UpdateMediatorPage() {
         </div>
       )}
 
+      {/* ========================================================================= */}
+      {/* MODAL 2: Modal ยืนยันข้อมูลก่อนส่ง (Confirmation Modal) ชัดเจน ละเอียด อ่านง่าย */}
+      {/* ========================================================================= */}
+      {showConfirmModal && selectedOfficer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-950/75 backdrop-blur-md overflow-y-auto animate-in fade-in duration-200">
+          <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-auto animate-in zoom-in-95 duration-200">
+            
+            {/* Header */}
+            <div className="bg-gradient-to-r from-slate-900 to-indigo-950 px-6 py-5 text-white flex items-center space-x-3.5 border-b border-slate-800">
+              <div className="w-11 h-11 rounded-xl bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center text-indigo-300">
+                <ClipboardCheck className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-white leading-snug">
+                  ตรวจสอบและยืนยันข้อมูล
+                </h3>
+                <p className="text-xs text-slate-300">
+                  กรุณาตรวจสอบความถูกต้องของข้อมูลอีกครั้งก่อนยืนยัน
+                </p>
+              </div>
+            </div>
+
+            {/* Content Summary */}
+            <div className="p-6 space-y-4">
+              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3 text-sm">
+                
+                {/* ชื่อ-สกุล */}
+                <div className="flex items-start justify-between border-b border-slate-200 pb-2.5">
+                  <span className="text-slate-500 text-xs">ชื่อ - นามสกุล:</span>
+                  <span className="font-bold text-slate-900 text-right">
+                    {selectedOfficer.title || ''}{selectedOfficer.first_name} {selectedOfficer.last_name}
+                  </span>
+                </div>
+
+                {/* ตำแหน่ง */}
+                <div className="flex items-start justify-between border-b border-slate-200 pb-2.5">
+                  <span className="text-slate-500 text-xs">ตำแหน่งในศูนย์:</span>
+                  <span className="font-semibold text-indigo-700 text-right">
+                    {selectedOfficer.position}
+                  </span>
+                </div>
+
+                {/* ศูนย์ไกล่เกลี่ย */}
+                <div className="flex flex-col border-b border-slate-200 pb-2.5 text-xs">
+                  <span className="text-slate-500 mb-0.5">ศูนย์ไกล่เกลี่ยข้อพิพาทภาคประชาชน:</span>
+                  <span className="font-medium text-slate-800 leading-relaxed">
+                    [{selectedOfficer.center_code}] {selectedOfficer.center_name}
+                  </span>
+                </div>
+
+                {/* เลขบัตรประชาชน 13 หลัก */}
+                <div className="flex items-center justify-between border-b border-slate-200 pb-2.5 bg-indigo-50/50 p-2.5 rounded-xl border border-indigo-100">
+                  <span className="text-indigo-900 font-semibold text-xs flex items-center space-x-1.5">
+                    <CreditCard className="w-4 h-4 text-indigo-600" />
+                    <span>เลขประจำตัวประชาชน:</span>
+                  </span>
+                  <span className="font-mono font-bold text-base text-indigo-950 tracking-wider">
+                    {formatThaiNationalID(idCardInput)}
+                  </span>
+                </div>
+
+                {/* เบอร์โทรศัพท์ */}
+                <div className="flex items-center justify-between border-b border-slate-200 pb-2.5 bg-slate-100/60 p-2.5 rounded-xl">
+                  <span className="text-slate-700 font-medium text-xs flex items-center space-x-1.5">
+                    <Phone className="w-4 h-4 text-slate-500" />
+                    <span>หมายเลขโทรศัพท์มือถือ:</span>
+                  </span>
+                  <span className="font-mono font-bold text-base text-slate-900 tracking-wider">
+                    {formatThaiPhone(phoneInput)}
+                  </span>
+                </div>
+
+                {/* วันเดือนปีเกิด */}
+                <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-100/60">
+                  <span className="text-slate-700 font-medium text-xs flex items-center space-x-1.5">
+                    <Calendar className="w-4 h-4 text-slate-500" />
+                    <span>วันเดือนปีเกิด (พ.ศ.):</span>
+                  </span>
+                  <span className="font-semibold text-sm text-slate-900">
+                    {birthDay} {birthMonth} {birthYearBe}
+                  </span>
+                </div>
+
+              </div>
+
+              <p className="text-[11px] text-slate-500 text-center leading-relaxed">
+                * ข้อมูลที่ท่านยืนยันจะถูกบันทึกเข้าสู่ฐานข้อมูลทะเบียนประวัติของกรมคุ้มครองสิทธิและเสรีภาพ และจะล็อกการแก้ไขผ่านหน้าเว็บเพื่อความปลอดภัย
+              </p>
+            </div>
+
+            {/* Footer Buttons */}
+            <div className="p-5 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center gap-3">
+              <button
+                type="button"
+                disabled={isSubmitting}
+                onClick={() => setShowConfirmModal(false)}
+                className="w-full sm:w-1/2 py-3 px-4 rounded-xl border border-slate-300 text-slate-700 font-semibold text-sm hover:bg-slate-100 transition-colors flex items-center justify-center space-x-2 cursor-pointer disabled:opacity-50"
+              >
+                <Edit3 className="w-4 h-4 text-slate-500" />
+                <span>กลับไปแก้ไข</span>
+              </button>
+              <button
+                type="button"
+                disabled={isSubmitting}
+                onClick={executeSubmit}
+                className="w-full sm:w-1/2 py-3 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm transition-all shadow-lg shadow-indigo-100 flex items-center justify-center space-x-2 cursor-pointer disabled:opacity-50"
+              >
+                {isSubmitting ? (
+                  <>
+                    <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                    </svg>
+                    <span>กำลังบันทึกข้อมูล...</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>ยืนยันและส่งข้อมูล</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
       {/* Intro Banner */}
       <div className="bg-gradient-to-r from-indigo-900 to-indigo-700 rounded-2xl p-6 sm:p-8 text-white shadow-lg relative overflow-hidden">
         <div className="relative z-10 max-w-2xl">
@@ -526,7 +658,7 @@ export default function UpdateMediatorPage() {
             เพื่อรองรับการพัฒนาระบบใหม่ของกรมคุ้มครองสิทธิและเสรีภาพ ขอความร่วมมือท่านตรวจสอบและบันทึกเลขประจำตัวประชาชน 13 หลัก และข้อมูลการติดต่อให้ครบถ้วนสมบูรณ์
           </p>
           
-          {/* Badge แสดงสถานะการยอมรับ PDPA */}
+          {/* Badge แสดงสถานะการยินยอม PDPA */}
           <div className="mt-4 flex items-center space-x-3">
             {consentAccepted ? (
               <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-200 border border-emerald-400/30">
@@ -542,7 +674,7 @@ export default function UpdateMediatorPage() {
             <button
               type="button"
               onClick={() => setIsPdpaModalOpen(true)}
-              className="text-xs text-indigo-200 hover:text-white underline font-medium"
+              className="text-xs text-indigo-200 hover:text-white underline font-medium cursor-pointer"
             >
               อ่านประกาศ PDPA ฉบับเต็ม
             </button>
@@ -667,7 +799,7 @@ export default function UpdateMediatorPage() {
                   <button
                     type="button"
                     onClick={() => { setSearchKeyword(''); resetSearchState(); }}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-sm p-1"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-sm p-1 cursor-pointer"
                   >
                     ✕
                   </button>
@@ -825,7 +957,7 @@ export default function UpdateMediatorPage() {
                   </button>
                 </div>
 
-                <form onSubmit={handleSubmit} className="space-y-5">
+                <form onSubmit={handleOpenConfirmModal} className="space-y-5">
                   {/* ฟิลด์ 1: เลขบัตรประชาชน 13 หลัก */}
                   <div>
                     <div className="flex items-center justify-between mb-1.5">
@@ -886,6 +1018,9 @@ export default function UpdateMediatorPage() {
                       onChange={(e) => setPhoneInput(formatThaiPhone(e.target.value))}
                       className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-3 text-base sm:text-lg font-mono tracking-wider text-slate-900 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
                     />
+                    <p className="text-[11px] text-slate-500 mt-1">
+                      * ต้องเป็นหมายเลขโทรศัพท์มือถือ 10 หลัก (ขึ้นต้นด้วย 06, 08 หรือ 09)
+                    </p>
                   </div>
 
                   {/* ฟิลด์ 3: วันเดือนปีเกิด (รูปแบบ พ.ศ.) */}
@@ -934,27 +1069,15 @@ export default function UpdateMediatorPage() {
                     </div>
                   </div>
 
-                  {/* ปุ่มบันทึก */}
+                  {/* ปุ่มตรวจสอบและบันทึก */}
                   <div className="pt-3">
                     <button
                       type="submit"
                       disabled={isSubmitting || !isIdCardValid}
                       className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3.5 px-6 rounded-xl text-base transition-all shadow-lg shadow-indigo-100 flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                     >
-                      {isSubmitting ? (
-                        <>
-                          <svg className="animate-spin h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
-                          </svg>
-                          <span>กำลังบันทึกข้อมูล...</span>
-                        </>
-                      ) : (
-                        <>
-                          <CheckCircle2 className="w-5 h-5" />
-                          <span>ยืนยันและบันทึกข้อมูล</span>
-                        </>
-                      )}
+                      <CheckCircle2 className="w-5 h-5" />
+                      <span>ตรวจสอบและบันทึกข้อมูล</span>
                     </button>
                   </div>
                 </form>
