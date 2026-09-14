@@ -838,11 +838,11 @@ export default function UpdateMediatorPage() {
                 <div className="w-14 h-14 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto shadow-inner">
                   <CheckCircle2 className="w-8 h-8" />
                 </div>
-                <h4 className="text-lg font-bold text-emerald-900">
-                  ข้อมูลของท่านในระบบมีความครบถ้วนสมบูรณ์แล้ว
+                <h4 className="text-lg sm:text-xl font-bold text-emerald-900">
+                  ไม่มีข้อมูลต้องแก้ไข
                 </h4>
                 <p className="text-sm text-emerald-800 max-w-lg mx-auto leading-relaxed">
-                  ไม่พบรายชื่อของท่านในกลุ่มข้อมูลที่ต้องปรับปรุงเพิ่มเติม เนื่องจากในฐานข้อมูลของกรมคุ้มครองสิทธิและเสรีภาพ มีข้อมูลของท่านครบถ้วนแล้ว จึงไม่จำเป็นต้องดำเนินการใดเพิ่มเติม ขอบพระคุณครับ
+                  ไม่พบรายชื่อที่ต้องปรับปรุงข้อมูล เนื่องจากข้อมูลของท่านในระบบมีความครบถ้วนสมบูรณ์แล้ว จึงไม่จำเป็นต้องดำเนินการใดเพิ่มเติม ขอบพระคุณครับ
                 </p>
               </div>
             )}
