@@ -11,6 +11,16 @@ export function convertThaiToArabicNumerals(text: string): string {
 }
 
 /**
+ * ตรวจสอบรูปแบบรหัสศูนย์ไกล่เกลี่ยข้อพิพาทภาคประชาชน
+ * ต้องเป็นรูปแบบ ศกช.xx xxxxxx เท่านั้น (เช่น ศกช.กท 010101, ศกช.กบ 010101)
+ */
+export function isValidCenterCode(code: string): boolean {
+  if (!code) return false;
+  const normalized = convertThaiToArabicNumerals(code).trim().replace(/\s+/g, ' ');
+  return /^ศกช\.[ก-๙]{2}\s\d{6}$/.test(normalized);
+}
+
+/**
  * ตรวจสอบความถูกต้องของเลขประจำตัวประชาชนไทย 13 หลัก ตามสูตร Check Digit (Modulo 11)
  */
 export function validateThaiNationalID(id: string): boolean {

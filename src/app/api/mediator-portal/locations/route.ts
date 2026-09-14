@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
-import { convertThaiToArabicNumerals } from '@/utils/thaiIdValidator';
+import { convertThaiToArabicNumerals, isValidCenterCode } from '@/utils/thaiIdValidator';
 
 // Cache จังหวัดในหน่วยความจำเพื่อความรวดเร็วสูงสุด
 let provincesCache: string[] | null = null;
@@ -8,7 +8,6 @@ let lastCacheTime = 0;
 
 async function getAllProvinces(): Promise<string[]> {
   const now = Date.now();
-  // แคชไว้ 15 นาที
   if (provincesCache && provincesCache.length > 0 && now - lastCacheTime < 1000 * 60 * 15) {
     return provincesCache;
   }
@@ -17,20 +16,23 @@ async function getAllProvinces(): Promise<string[]> {
   let from = 0;
   const step = 1000;
 
-  // วนลูปดึงด้วย Range เพื่อหลุดข้อจำกัด 1000 แถวของ PostgREST
   while (true) {
     const { data, error } = await supabase
       .from('mediator_officers')
-      .select('province')
+      .select('province, center_code')
       .not('province', 'is', null)
+      .like('center_code', 'ศกช.%')
       .range(from, from + step - 1);
 
     if (error || !data || data.length === 0) break;
 
     for (const row of data) {
-      const p = row.province?.trim();
-      if (p && p !== 'ไม่ระบุจังหวัด' && p !== '') {
-        provSet.add(p);
+      // กรองเฉพาะศูนย์ที่มีรูปแบบ ศกช.xx xxxxxx เท่านั้น
+      if (isValidCenterCode(row.center_code || '')) {
+        const p = row.province?.trim();
+        if (p && p !== 'ไม่ระบุจังหวัด' && p !== '') {
+          provSet.add(p);
+        }
       }
     }
 
@@ -50,13 +52,13 @@ export async function GET(request: NextRequest) {
     const district = searchParams.get('district');
     const subdistrict = searchParams.get('subdistrict');
 
-    // 1. ดึงรายชื่อจังหวัดทั้งหมดในระบบ (ครบทุกจังหวัดทั่วประเทศ)
+    // 1. ดึงรายชื่อจังหวัดที่มีศูนย์ถูกต้องตามรูปแบบ ศกช.xx xxxxxx
     if (!province) {
       const provinces = await getAllProvinces();
       return NextResponse.json({ success: true, data: provinces });
     }
 
-    // 2. ดึงรายชื่ออำเภอ/เขต ภายใต้จังหวัด (รองรับกทม. ที่มีข้อมูลเกิน 1000 แถว)
+    // 2. ดึงรายชื่ออำเภอ/เขต ภายใต้จังหวัด (เฉพาะศูนย์ที่ถูกต้อง)
     if (province && !district) {
       const distSet = new Set<string>();
       let from = 0;
@@ -65,17 +67,20 @@ export async function GET(request: NextRequest) {
       while (true) {
         const { data, error } = await supabase
           .from('mediator_officers')
-          .select('district')
+          .select('district, center_code')
           .eq('province', province)
           .not('district', 'is', null)
+          .like('center_code', 'ศกช.%')
           .range(from, from + step - 1);
 
         if (error || !data || data.length === 0) break;
 
         for (const row of data) {
-          const d = row.district?.trim();
-          if (d && d !== 'ไม่ระบุอำเภอ' && d !== '') {
-            distSet.add(d);
+          if (isValidCenterCode(row.center_code || '')) {
+            const d = row.district?.trim();
+            if (d && d !== 'ไม่ระบุอำเภอ' && d !== '') {
+              distSet.add(d);
+            }
           }
         }
 
@@ -87,30 +92,34 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: true, data: districts });
     }
 
-    // 3. ดึงรายชื่อตำบล/แขวง ภายใต้อำเภอ
+    // 3. ดึงรายชื่อตำบล/แขวง ภายใต้อำเภอ (เฉพาะศูนย์ที่ถูกต้อง)
     if (province && district && !subdistrict) {
       const { data, error } = await supabase
         .from('mediator_officers')
-        .select('subdistrict')
+        .select('subdistrict, center_code')
         .eq('province', province)
         .eq('district', district)
         .not('subdistrict', 'is', null)
+        .like('center_code', 'ศกช.%')
         .range(0, 1000);
 
       if (error) throw error;
 
-      const subdistricts = Array.from(
-        new Set(
-          data
-            .map((item) => item.subdistrict?.trim())
-            .filter((s) => s && s !== 'ไม่ระบุตำบล' && s !== '')
-        )
-      ).sort((a, b) => a.localeCompare(b, 'th'));
+      const subdistSet = new Set<string>();
+      data.forEach((row) => {
+        if (isValidCenterCode(row.center_code || '')) {
+          const s = row.subdistrict?.trim();
+          if (s && s !== 'ไม่ระบุตำบล' && s !== '') {
+            subdistSet.add(s);
+          }
+        }
+      });
 
+      const subdistricts = Array.from(subdistSet).sort((a, b) => a.localeCompare(b, 'th'));
       return NextResponse.json({ success: true, data: subdistricts });
     }
 
-    // 4. ดึงรายชื่อศูนย์ไกล่เกลี่ยฯ ภายใต้ตำบล/อำเภอ/จังหวัด (แปลงเลขไทยเป็นเลขอารบิก)
+    // 4. ดึงรายชื่อศูนย์ไกล่เกลี่ยฯ (กรองเฉพาะรูปแบบ ศกช.xx xxxxxx เท่านั้น)
     if (province && district && subdistrict) {
       const { data, error } = await supabase
         .from('mediator_officers')
@@ -119,21 +128,24 @@ export async function GET(request: NextRequest) {
         .eq('district', district)
         .eq('subdistrict', subdistrict)
         .not('center_name', 'is', null)
+        .like('center_code', 'ศกช.%')
         .range(0, 1000);
 
       if (error) throw error;
 
       const centerMap = new Map();
       data.forEach((c) => {
-        const arabicCode = convertThaiToArabicNumerals(c.center_code || '').trim();
+        const arabicCode = convertThaiToArabicNumerals(c.center_code || '').trim().replace(/\s+/g, ' ');
         const arabicName = convertThaiToArabicNumerals(c.center_name || '').trim();
-        const key = arabicCode || arabicName;
 
-        if (key && !centerMap.has(key)) {
-          centerMap.set(key, {
-            center_code: arabicCode,
-            center_name: arabicName,
-          });
+        // แสดงเฉพาะศูนย์ที่รหัสตรงตามรูปแบบ ศกช.xx xxxxxx
+        if (isValidCenterCode(arabicCode)) {
+          if (!centerMap.has(arabicCode)) {
+            centerMap.set(arabicCode, {
+              center_code: arabicCode,
+              center_name: arabicName,
+            });
+          }
         }
       });
 
